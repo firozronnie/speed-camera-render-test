@@ -34,22 +34,22 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npx remotion browser ensure
-      - name: Render SpeedCameraTest
+      - name: Render SpeedCameraFull
         run: |
           mkdir -p out
           set -o pipefail
-          npx remotion render SpeedCameraTest out/test15.mp4 --gl=swangle --codec=h264 --overwrite 2>&1 | tee out/render.log
+          npx remotion render SpeedCameraFull out/speed-camera-full.mp4 --gl=swangle --codec=h264 --overwrite 2>&1 | tee out/render.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test15.mp4
-          path: out/test15.mp4
+          name: speed-camera-full.mp4
+          path: out/speed-camera-full.mp4
           if-no-files-found: warn
       - name: Commit result back to repo
         if: always()
         run: |
           mkdir -p out
-          if [ -f out/test15.mp4 ]; then
+          if [ -f out/speed-camera-full.mp4 ]; then
             echo '{"status":"success"}' > out/render-status.json
           else
             echo '{"status":"failed"}' > out/render-status.json
@@ -57,6 +57,6 @@ jobs:
           tail -c 6000 out/render.log > out/render-log-tail.txt || true
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f out/test15.mp4 out/render-status.json out/render-log-tail.txt || true
+          git add -f out/speed-camera-full.mp4 out/render-status.json out/render-log-tail.txt || true
           git commit -m "Render result: $(cat out/render-status.json)" || echo "nothing to commit"
           git push || echo "push failed"

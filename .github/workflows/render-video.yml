@@ -1,0 +1,60 @@
+name: Render video
+
+# Renders the Remotion composition on GitHub's runner (the phone cannot render
+# WebGL) and commits the mp4 + a status file back to the repo so the result
+# can be fetched without API auth. The workflow only re-triggers on source
+# changes, never on its own result commit (out/ is not in the paths filter).
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'remotion.config.ts'
+      - '.github/workflows/render-video.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: render-video
+  cancel-in-progress: false
+
+jobs:
+  render:
+    name: Render video
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx remotion browser ensure
+      - name: Render SpeedCameraTest
+        run: |
+          set -o pipefail
+          npx remotion render SpeedCameraTest out/test15.mp4 --gl=swangle --codec=h264 --overwrite 2>&1 | tee out/render.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test15.mp4
+          path: out/test15.mp4
+          if-no-files-found: warn
+      - name: Commit result back to repo
+        if: always()
+        run: |
+          if [ -f out/test15.mp4 ]; then
+            echo '{"status":"success"}' > out/render-status.json
+          else
+            echo '{"status":"failed"}' > out/render-status.json
+          fi
+          tail -c 6000 out/render.log > out/render-log-tail.txt || true
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add out/test15.mp4 out/render-status.json out/render-log-tail.txt || true
+          git commit -m "Render result: $(cat out/render-status.json)" || echo "nothing to commit"
+          git push || echo "push failed"

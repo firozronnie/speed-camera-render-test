@@ -128,3 +128,150 @@ export function slowPaintTexture(): THREE.CanvasTexture {
 	tex.colorSpace = THREE.SRGBColorSpace;
 	return tex;
 }
+
+/** The $2,000 check the good driver finds in his mailbox. */
+export function checkTexture(): THREE.CanvasTexture {
+	const c = makeCanvas(1024, 512);
+	const ctx = c.getContext('2d')!;
+	ctx.fillStyle = '#FFFFFF';
+	ctx.fillRect(0, 0, 1024, 512);
+	ctx.strokeStyle = '#1B7A2E';
+	ctx.lineWidth = 10;
+	ctx.strokeRect(14, 14, 996, 484);
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.fillStyle = '#111111';
+	ctx.font = '900 54px Arial, sans-serif';
+	ctx.fillText('CITY SPEED CAMERA FUND', 512, 86);
+	ctx.font = '700 44px Arial, sans-serif';
+	ctx.fillText('PAY TO THE GOOD DRIVER', 512, 168);
+	ctx.fillStyle = '#1B7A2E';
+	ctx.font = '900 150px Arial, sans-serif';
+	ctx.fillText('$2,000', 512, 330);
+	ctx.fillStyle = '#111111';
+	ctx.font = '700 34px Arial, sans-serif';
+	ctx.fillText('THANK YOU FOR DRIVING SLOW', 512, 448);
+	const tex = new THREE.CanvasTexture(c);
+	tex.colorSpace = THREE.SRGBColorSpace;
+	tex.anisotropy = 4;
+	return tex;
+}
+
+/** A green banknote with a $ in the middle (shared by all flying notes). */
+export function banknoteTexture(): THREE.CanvasTexture {
+	const c = makeCanvas(256, 128);
+	const ctx = c.getContext('2d')!;
+	ctx.fillStyle = '#2E7D32';
+	ctx.fillRect(0, 0, 256, 128);
+	ctx.strokeStyle = '#C8E6C9';
+	ctx.lineWidth = 6;
+	ctx.strokeRect(8, 8, 240, 112);
+	ctx.fillStyle = '#FFFFFF';
+	ctx.font = '900 72px Arial, sans-serif';
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.fillText('$', 128, 68);
+	const tex = new THREE.CanvasTexture(c);
+	tex.colorSpace = THREE.SRGBColorSpace;
+	return tex;
+}
+
+/** Fake code lines on the inventor's black tablet. */
+export function codeTexture(): THREE.CanvasTexture {
+	const c = makeCanvas(512, 640);
+	const ctx = c.getContext('2d')!;
+	ctx.fillStyle = '#101418';
+	ctx.fillRect(0, 0, 512, 640);
+	ctx.textAlign = 'left';
+	ctx.textBaseline = 'middle';
+	ctx.font = '700 34px monospace';
+	const lines: {text: string; color: string}[] = [
+		{text: 'if (speed < LIMIT) {', color: '#FFD54F'},
+		{text: '  FLASH();', color: '#4FC3F7'},
+		{text: '  LOTTERY.add(', color: '#81C784'},
+		{text: '    plate);', color: '#81C784'},
+		{text: '} else {', color: '#FFD54F'},
+		{text: '  FINE.add(', color: '#EF9A9A'},
+		{text: '    plate);', color: '#EF9A9A'},
+		{text: '}', color: '#FFD54F'},
+		{text: '// one rule', color: '#78909C'},
+		{text: '// changed', color: '#78909C'},
+	];
+	lines.forEach((l, i) => {
+		ctx.fillStyle = l.color;
+		ctx.fillText(l.text, 36, 64 + i * 52);
+	});
+	const tex = new THREE.CanvasTexture(c);
+	tex.colorSpace = THREE.SRGBColorSpace;
+	tex.anisotropy = 4;
+	return tex;
+}
+
+/** TV screen: a green football field with white lines. */
+export function tvTexture(): THREE.CanvasTexture {
+	const c = makeCanvas(512, 288);
+	const ctx = c.getContext('2d')!;
+	const g = ctx.createLinearGradient(0, 0, 0, 288);
+	g.addColorStop(0, '#43A047');
+	g.addColorStop(1, '#2E7D32');
+	ctx.fillStyle = g;
+	ctx.fillRect(0, 0, 512, 288);
+	ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+	ctx.lineWidth = 5;
+	ctx.strokeRect(14, 14, 484, 260);
+	ctx.beginPath();
+	ctx.moveTo(256, 14);
+	ctx.lineTo(256, 274);
+	ctx.stroke();
+	ctx.beginPath();
+	ctx.arc(256, 144, 52, 0, Math.PI * 2);
+	ctx.stroke();
+	const tex = new THREE.CanvasTexture(c);
+	tex.colorSpace = THREE.SRGBColorSpace;
+	return tex;
+}
+
+/** Green overhead highway sign. */
+export function overheadTexture(): THREE.CanvasTexture {
+	const c = makeCanvas(512, 256);
+	const ctx = c.getContext('2d')!;
+	ctx.fillStyle = '#1B7A2E';
+	ctx.fillRect(0, 0, 512, 256);
+	ctx.strokeStyle = '#FFFFFF';
+	ctx.lineWidth = 8;
+	ctx.strokeRect(10, 10, 492, 236);
+	ctx.fillStyle = '#FFFFFF';
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.font = '900 52px Arial, sans-serif';
+	ctx.fillText('SPEED LIMIT', 256, 78);
+	ctx.font = '900 110px Arial, sans-serif';
+	ctx.fillText('55', 256, 178);
+	const tex = new THREE.CanvasTexture(c);
+	tex.colorSpace = THREE.SRGBColorSpace;
+	tex.anisotropy = 4;
+	return tex;
+}
+
+/** Skyline tower: grey-blue facade with a lit window grid (no more blank slabs). */
+export function towerTexture(): THREE.CanvasTexture {
+	const c = makeCanvas(128, 256);
+	const ctx = c.getContext('2d')!;
+	ctx.fillStyle = '#93A5B5';
+	ctx.fillRect(0, 0, 128, 256);
+	const rnd = mulberry32(55);
+	for (let y = 14; y < 244; y += 22) {
+		for (let x = 12; x < 116; x += 24) {
+			const lit = rnd() > 0.45;
+			ctx.fillStyle = lit ? '#FFE082' : '#37474F';
+			ctx.globalAlpha = lit ? 0.95 : 0.85;
+			ctx.fillRect(x, y, 14, 14);
+		}
+	}
+	ctx.globalAlpha = 1;
+	const tex = new THREE.CanvasTexture(c);
+	tex.wrapS = THREE.RepeatWrapping;
+	tex.wrapT = THREE.RepeatWrapping;
+	tex.colorSpace = THREE.SRGBColorSpace;
+	return tex;
+}

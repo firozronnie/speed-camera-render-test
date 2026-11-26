@@ -8,6 +8,7 @@ import {
 	skyGradientTexture,
 	slowPaintTexture,
 	textTexture,
+	towerTexture,
 } from './textures';
 
 const SKY = '#2F7FD0';
@@ -24,7 +25,7 @@ function GrassBlades() {
 		geo.translate(0, 0.15, 0);
 		geo.scale(1, 1, 0.35);
 		const mat = new THREE.MeshStandardMaterial({roughness: 0.9});
-		const count = 900;
+		const count = 2200;
 		const m = new THREE.InstancedMesh(geo, mat, count);
 		const dummy = new THREE.Object3D();
 		const rnd = mulberry32(42);
@@ -53,7 +54,7 @@ function Stones() {
 	const mesh = React.useMemo(() => {
 		const geo = new THREE.DodecahedronGeometry(0.13, 0);
 		const mat = new THREE.MeshStandardMaterial({roughness: 0.95});
-		const count = 650;
+		const count = 1400;
 		const m = new THREE.InstancedMesh(geo, mat, count);
 		const dummy = new THREE.Object3D();
 		const rnd = mulberry32(123);
@@ -112,7 +113,7 @@ function Trees() {
 		for (let i = 0; i < 16; i++) {
 			const side = i % 2 === 0 ? 1 : -1;
 			arr.push({
-				pos: [side * (11 + rnd() * 17), 0, -88 + rnd() * 100],
+				pos: [side * (13 + rnd() * 15), 0, -88 + rnd() * 100],
 				s: 0.8 + rnd() * 1.1,
 			});
 		}
@@ -200,6 +201,7 @@ function Houses() {
 }
 
 function Skyline() {
+	const towerTex = useMemoTexture(towerTexture);
 	const towers = React.useMemo(() => {
 		const rnd = mulberry32(777);
 		const arr: {x: number; h: number; w: number}[] = [];
@@ -213,7 +215,7 @@ function Skyline() {
 			{towers.map((t, i) => (
 				<mesh key={i} position={[t.x, t.h / 2, -115]}>
 					<boxGeometry args={[t.w, t.h, 6]} />
-					<meshStandardMaterial color="#93A5B5" roughness={0.9} />
+					<meshStandardMaterial map={towerTex} roughness={0.9} />
 				</mesh>
 			))}
 		</>
@@ -244,11 +246,18 @@ function Clouds({frame}: {frame: number}) {
 }
 
 /** The yellow speed-camera pole (shot 1 + 5 hero object). */
-function CameraPole() {
+function CameraPole({displayText = '27 MPH'}: {displayText?: string}) {
 	const display = useMemoTexture(() =>
 		textTexture({
 			bg: '#0A2A12',
-			lines: [{text: '27 MPH', size: 110, color: '#22C55E', y: 140}],
+			lines: [
+				{
+					text: displayText,
+					size: displayText === '27 MPH' ? 110 : 62,
+					color: '#22C55E',
+					y: 140,
+				},
+			],
 			w: 512,
 			h: 256,
 		}),
@@ -307,7 +316,7 @@ function FineSign({flip}: {flip: boolean}) {
 		}),
 	);
 	return (
-		<group position={[6.8, 0, -2]} rotation={[0, -0.25, 0]}>
+		<group position={[14, 0, -2]} rotation={[0, -0.25, 0]}>
 			{/* pole stands BEHIND the board so it never crosses the text */}
 			<mesh position={[0, 1.5, -0.22]}>
 				<cylinderGeometry args={[0.09, 0.11, 3, 8]} />
@@ -325,11 +334,41 @@ function FineSign({flip}: {flip: boolean}) {
 	);
 }
 
+import {
+	Banknotes,
+	Check,
+	JackpotMachine,
+	Ladder,
+	LivingRoom,
+	LotteryDrum,
+	Mailbox,
+	OverheadSign,
+	PicketFence,
+	QuestionBubble,
+	Tablet,
+} from './props';
+
 export const World: React.FC<{
 	frame: number;
 	signFlip: boolean;
 	showSlow: boolean;
-}> = ({frame, signFlip, showSlow}) => {
+	navy?: boolean;
+	room?: boolean;
+	poleDisplay?: string;
+	showProps?: {
+		ladder?: boolean;
+		mailbox?: boolean;
+		check?: {x: number; y: number; z: number; rotY: number};
+		tablet?: {x: number; y: number; z: number; rotY: number};
+		banknotes?: 'burst' | 'rain';
+		bankOrigin?: [number, number, number];
+		jackpot?: boolean;
+		drum?: boolean;
+		question?: {x: number; y: number; z: number};
+		overhead?: boolean;
+		fence?: boolean;
+	};
+}> = ({frame, signFlip, showSlow, navy = false, room = false, poleDisplay = '27 MPH', showProps}) => {
 	const skyTex = useMemoTexture(skyGradientTexture);
 	const grassTex = useMemoTexture(grassTexture);
 	const asphaltTex = useMemoTexture(asphaltTexture);
@@ -342,8 +381,9 @@ export const World: React.FC<{
 		slowTex.center.set(0.5, 0.5);
 		slowTex.rotation = 0;
 		// gradient sky as the scene background: visible in every direction
-		scene.background = skyTex;
-	}, [grassTex, asphaltTex, slowTex, skyTex, scene]);
+		// navy diagram mode: dark navy background instead
+		scene.background = navy ? new THREE.Color('#0A1030') : room ? new THREE.Color('#E8E0D8') : skyTex;
+	}, [grassTex, asphaltTex, slowTex, skyTex, scene, navy, room]);
 
 	const dashes = React.useMemo(() => {
 		const arr: number[] = [];
@@ -351,14 +391,58 @@ export const World: React.FC<{
 		return arr;
 	}, []);
 
+	// Room mode: only the living room set (shot 25).
+	if (room) {
+		return (
+			<group>
+				<hemisphereLight args={['#FFF3E0', '#8D6E63', 1.2]} />
+				<directionalLight position={[-6, 8, 8]} intensity={1.4} color="#FFE0B2" />
+				<LivingRoom />
+			</group>
+		);
+	}
+
+	// Navy diagram mode (shots 20-21): dark navy space, pole + jackpot only.
+	if (navy) {
+		return (
+			<group>
+				<fog attach="fog" args={['#0A1030', 25, 90]} />
+				<hemisphereLight args={['#3D5A80', '#0A1030', 1.0]} />
+				<directionalLight position={[-8, 14, 8]} intensity={1.6} color="#FFD54F" />
+				<directionalLight position={[8, 6, 10]} intensity={0.6} color="#90CAF9" />
+				{/* dark ground disc so the pole and drum stand on something */}
+				<mesh position={[0, 0, -8]} rotation={[-Math.PI / 2, 0, 0]}>
+					<circleGeometry args={[16, 32]} />
+					<meshStandardMaterial color="#101B3C" roughness={0.9} />
+				</mesh>
+				{/* the pole only appears in the jackpot-machine shot (20); the drum shot (21) is pole-free */}
+				{showProps?.jackpot && <CameraPole displayText={poleDisplay} />}
+				{showProps?.jackpot && <JackpotMachine />}
+				{showProps?.drum && <LotteryDrum position={[0, 0, -8]} />}
+			</group>
+		);
+	}
+
 	return (
 		<group>
-			<fog attach="fog" args={['#B0C4DE', 45, 135]} />
+			<fog attach="fog" args={['#B0C4DE', 35, 110]} />
 			<hemisphereLight args={['#BFE3F7', '#4CAF50', 1.1]} />
-			<directionalLight position={[-12, 18, 10]} intensity={1.7} color="#FFE9B0" />
-			<directionalLight position={[8, 6, 12]} intensity={0.7} color="#FFFFFF" />
+			{/* warm sun (key) + cool sky fill */}
+			<directionalLight position={[-12, 18, 10]} intensity={2.0} color="#FFD27A" />
+			<directionalLight position={[8, 6, 12]} intensity={0.7} color="#BFE3F7" />
 
 			<Clouds frame={frame} />
+			{/* low mist banks for depth (soft, far, never in front of the action) */}
+			{[
+				{x: -14, y: 2.2, z: -55, w: 30, o: 0.07},
+				{x: 12, y: 2.6, z: -75, w: 36, o: 0.06},
+				{x: -6, y: 3.0, z: -95, w: 44, o: 0.08},
+			].map((m, i) => (
+				<mesh key={i} position={[m.x, m.y, m.z]}>
+					<planeGeometry args={[m.w, 5]} />
+					<meshBasicMaterial color="#FFFFFF" transparent opacity={m.o} fog={false} />
+				</mesh>
+			))}
 
 			{/* grass ground */}
 			<mesh position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -417,8 +501,45 @@ export const World: React.FC<{
 			<TelegraphPoles />
 			<Houses />
 			<Skyline />
-			<CameraPole />
+			<CameraPole displayText={poleDisplay} />
 			<FineSign flip={signFlip} />
+
+			{/* suburban set (shots 16-19): mailbox + picket fence on the lawn */}
+			{showProps?.mailbox && <Mailbox position={[-13.5, 0, -10.6]} />}
+			{showProps?.fence && <PicketFence position={[-13.5, 0, -11.5]} length={11} />}
+			{/* overhead green sign gantry (shots 22-23) */}
+			{showProps?.overhead && <OverheadSign position={[0, 0, -40]} />}
+			{/* inventor's ladder leaning on the pole (shot 12) */}
+			{showProps?.ladder && <Ladder position={[-5.0, 0, -6.2]} rotY={-0.25} />}
+			{/* inventor's tablet (shot 13) */}
+			{showProps?.tablet && (
+				<Tablet
+					position={[showProps.tablet.x, showProps.tablet.y, showProps.tablet.z]}
+					rotY={showProps.tablet.rotY}
+				/>
+			)}
+			{/* the $2,000 check (shot 18) */}
+			{showProps?.check && (
+				<Check
+					position={[showProps.check.x, showProps.check.y, showProps.check.z]}
+					rotY={showProps.check.rotY}
+				/>
+			)}
+			{/* banknotes: flying out of the red car (shot 11) / raining (shot 19) */}
+			{showProps?.banknotes && (
+				<Banknotes
+					mode={showProps.banknotes}
+					frame={frame}
+					origin={showProps.bankOrigin ?? [2.5, 1.2, -10]}
+				/>
+			)}
+			{/* big yellow "?" above the confused driver (shot 15) */}
+			{showProps?.question && (
+				<QuestionBubble
+					position={[showProps.question.x, showProps.question.y, showProps.question.z]}
+					frame={frame}
+				/>
+			)}
 		</group>
 	);
 };

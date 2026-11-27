@@ -6,18 +6,22 @@ import {makeCar} from './scene/car';
 import {makeDriver} from './scene/driver';
 import {makeProp} from './scene/props';
 import {getFullShotState, HEIGHT, type FullShotState, WIDTH} from './scene/shots-full';
+import {skyEnvironment} from './scene/textures';
 import {makeWorld} from './scene/world';
 
 const buildScene = (state: FullShotState): THREE.Scene => {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(state.night ? '#081229' : '#8CC7EA');
-  scene.fog = new THREE.FogExp2(state.night ? '#081229' : '#C8DDE8', 0.011);
+  scene.background = new THREE.Color(state.night ? '#14264B' : '#9CCBEA');
+  scene.fog = new THREE.FogExp2(state.night ? '#1B3560' : '#D2E1E9', 0.0085);
+  scene.environment = skyEnvironment(state.night);
+  scene.environmentIntensity = state.night ? 1.4 : 1.15;
 
   scene.add(
     makeWorld({
       night: state.night,
       pole: state.pole,
       display: state.poleDisplay,
+      frame: state.frame,
     }),
   );
 
@@ -64,8 +68,10 @@ export const SpeedCameraFull: React.FC = () => {
         onCreated={({gl}) => {
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.12;
-          gl.setClearColor(state.night ? '#081229' : '#8CC7EA');
+          gl.toneMappingExposure = 1.18;
+          gl.shadowMap.enabled = true;
+          gl.shadowMap.type = THREE.PCFSoftShadowMap;
+          gl.setClearColor(state.night ? '#14264B' : '#9CCBEA');
         }}
       >
         <primitive object={scene} />

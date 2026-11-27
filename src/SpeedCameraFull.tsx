@@ -1,138 +1,141 @@
-import React from 'react';
-import {AbsoluteFill, Audio, staticFile, useCurrentFrame} from 'remotion';
+import React, {useMemo} from 'react';
 import {ThreeCanvas} from '@remotion/three';
-import {useFrame, useThree} from '@react-three/fiber';
+import {AbsoluteFill, Audio, staticFile, useCurrentFrame} from 'remotion';
 import * as THREE from 'three';
-import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
-import {getFullShotState, type FullDriverState} from './scene/shots-full';
-import {World} from './scene/world';
-import {CarBody} from './scene/car';
-import {Driver} from './scene/driver';
+import {makeCar} from './scene/car';
+import {makeDriver} from './scene/driver';
+import {makeProp} from './scene/props';
+import {getFullShotState, HEIGHT, type FullShotState, WIDTH} from './scene/shots-full';
+import {makeWorld} from './scene/world';
 
-/** Drives the three.js camera from the measured full shot plan every frame. */
-function CameraRig() {
-	const frame = useCurrentFrame();
-	const camera = useThree((s) => s.camera);
-	useFrame(() => {
-		const st = getFullShotState(frame);
-		camera.position.set(st.camPos[0], st.camPos[1], st.camPos[2]);
-		camera.lookAt(st.camLook[0], st.camLook[1], st.camLook[2]);
-	});
-	return null;
-}
+const buildScene = (state: FullShotState): THREE.Scene => {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(state.night ? '#081229' : '#8CC7EA');
+  scene.fog = new THREE.FogExp2(state.night ? '#081229' : '#C8DDE8', 0.011);
 
-/** One-time image-based lighting so metallic paint and chrome read as glossy
- *  instead of black (no env map = metals reflect darkness). */
-function Environment() {
-	const scene = useThree((s) => s.scene);
-	const gl = useThree((s) => s.gl);
-	React.useMemo(() => {
-		const pmrem = new THREE.PMREMGenerator(gl);
-		const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-		scene.environment = envTex;
-		scene.environmentIntensity = 0.55;
-		pmrem.dispose();
-	}, [scene, gl]);
-	return null;
-}
+  scene.add(
+    makeWorld({
+      night: state.night,
+      pole: state.pole,
+      display: state.poleDisplay,
+    }),
+  );
 
-function DriverView({d, frame}: {d: FullDriverState; frame: number}) {
-	return (
-		<Driver
-			position={[d.x, d.y, d.z]}
-			yaw={d.yaw}
-			shirt={d.shirt}
-			seated={d.seated}
-			emotion={d.emotion}
-			frame={frame}
-			steering={d.steering}
-			pointing={d.pointing}
-			scale={d.scale}
-			walk={d.walk}
-			pose={d.pose}
-			skeleton={d.skeleton}
-			redFace={d.redFace}
-			noShadow={d.noShadow}
-		/>
-	);
-}
+  for (const car of state.cars) scene.add(makeCar(car));
+  for (const driver of state.drivers) scene.add(makeDriver(driver));
+  for (const prop of state.props) scene.add(makeProp(prop));
 
-function Scene() {
-	const frame = useCurrentFrame();
-	const st = getFullShotState(frame);
-	return (
-		<>
-			<CameraRig />
-			<Environment />
-			<World
-				frame={frame}
-				signFlip={st.signFlip}
-				showSlow={st.showSlow}
-				navy={st.navy}
-				room={st.room}
-				poleDisplay={st.poleDisplay}
-				showProps={st.props}
-			/>
-			{st.cars.map((car, i) => (
-				<group key={i} position={[car.x, 0, car.z]} rotation={[0, car.rotY, 0]}>
-					<CarBody color={car.color} brake={car.brake} wheelSpin={car.wheelSpin} />
-				</group>
-			))}
-			{st.driver && <DriverView d={st.driver} frame={frame} />}
-			{st.extraDrivers.map((d, i) => (
-				<DriverView key={i} d={d} frame={frame} />
-			))}
-		</>
-	);
-}
+  return scene;
+};
+
+const buildCamera = (state: FullShotState): THREE.PerspectiveCamera => {
+  const camera = new THREE.PerspectiveCamera(state.camera.fov, WIDTH / HEIGHT, 0.1, 400);
+  camera.position.set(
+    state.camera.position[0],
+    state.camera.position[1],
+    state.camera.position[2],
+  );
+  camera.lookAt(
+    state.camera.lookAt[0],
+    state.camera.lookAt[1],
+    state.camera.lookAt[2],
+  );
+  return camera;
+};
 
 export const SpeedCameraFull: React.FC = () => {
-	const frame = useCurrentFrame();
-	const st = getFullShotState(frame);
-	return (
-		<AbsoluteFill style={{backgroundColor: '#8FC3EE'}}>
-			<ThreeCanvas
-				width={1080}
-				height={1920}
-				camera={{fov: 50, near: 0.1, far: 400, position: [0, 2, 10]}}
-				style={{width: '100%', height: '100%'}}
-			>
-				<Scene />
-			</ThreeCanvas>
-			{/* the full voiceover, mixed in from the public folder */}
-			<Audio src={staticFile('speed-camera-voice-1.2x.mp3')} />
-			{/* camera-flash moment (X-ray gag, good-driver flashes): brief white light */}
-			{st.flash && (
-				<div
-					style={{
-						position: 'absolute',
-						inset: 0,
-						backgroundColor: '#FFFFFF',
-						opacity: 0.85,
-						pointerEvents: 'none',
-					}}
-				/>
-			)}
-			{/* HUD scoreboard number — screen-space overlay, top centre */}
-			{st.hud && (
-				<div
-					style={{
-						position: 'absolute',
-						top: 110,
-						left: 0,
-						right: 0,
-						textAlign: 'center',
-						fontSize: 118,
-						fontWeight: 900,
-						fontFamily: "'Arial Black', 'DejaVu Sans', sans-serif",
-						color: st.hud.color,
-						textShadow: `0 0 28px ${st.hud.color}, 0 4px 0 rgba(0,0,0,0.35)`,
-						letterSpacing: 2,
-					}}
-				>
-					{st.hud.text}
-				</div>
-			)}
-		</AbsoluteFill>
-	);
+  const frame = useCurrentFrame();
+  const state = useMemo(() => getFullShotState(frame), [frame]);
+  const scene = useMemo(() => buildScene(state), [state]);
+  const camera = useMemo(() => buildCamera(state), [state]);
+
+  const hud = state.hud;
+  const fontSize = hud && hud.text.length > 13 ? 70 : hud && hud.text.length > 9 ? 84 : 106;
+
+  return (
+    <AbsoluteFill style={{backgroundColor: '#000000'}}>
+      <Audio src={staticFile('speed-camera-voice-1.2x.mp3')} />
+      <ThreeCanvas
+        width={WIDTH}
+        height={HEIGHT}
+        camera={camera}
+        style={{width: '100%', height: '100%'}}
+        gl={{antialias: true, alpha: false, powerPreference: 'high-performance'}}
+        onCreated={({gl}) => {
+          gl.outputColorSpace = THREE.SRGBColorSpace;
+          gl.toneMapping = THREE.ACESFilmicToneMapping;
+          gl.toneMappingExposure = 1.12;
+          gl.setClearColor(state.night ? '#081229' : '#8CC7EA');
+        }}
+      >
+        <primitive object={scene} />
+      </ThreeCanvas>
+
+      {hud ? (
+        <div
+          style={{
+            position: 'absolute',
+            top: '6.5%',
+            left: '7%',
+            width: '86%',
+            textAlign: 'center',
+            zIndex: 3,
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              display: 'inline-block',
+              maxWidth: '100%',
+              padding: '18px 32px',
+              borderRadius: 28,
+              background: 'rgba(8,14,26,0.66)',
+              border: `5px solid ${hud.color}`,
+              boxShadow: '0 12px 34px rgba(0,0,0,0.38)',
+              boxSizing: 'border-box',
+            }}
+          >
+            <div
+              style={{
+                fontFamily: 'Arial Black, Impact, Arial, sans-serif',
+                fontSize,
+                fontWeight: 900,
+                lineHeight: 1.08,
+                letterSpacing: 2,
+                color: hud.color,
+                textShadow: '0 5px 0 rgba(0,0,0,0.55)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {hud.text}
+            </div>
+            {hud.sub ? (
+              <div
+                style={{
+                  fontFamily: 'Arial, sans-serif',
+                  fontSize: 44,
+                  fontWeight: 800,
+                  color: '#FFFFFF',
+                  marginTop: 8,
+                }}
+              >
+                {hud.sub}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {state.flash > 0 ? (
+        <AbsoluteFill
+          style={{
+            backgroundColor: '#FFFFFF',
+            opacity: state.flash,
+            zIndex: 4,
+            pointerEvents: 'none',
+          }}
+        />
+      ) : null}
+    </AbsoluteFill>
+  );
 };

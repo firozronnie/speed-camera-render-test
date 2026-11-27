@@ -1,327 +1,238 @@
-import React from 'react';
 import * as THREE from 'three';
+import type {CarColor, CarState} from './shots-full';
+import {boxGeo, cylGeo, planeGeo, sphereGeo, torusGeo} from './textures';
 
-/**
- * A detailed sedan, built facing +Z (front at +Z) — wobblytale-grade detail.
- * Glossy clearcoat paint, gold/brass trim, rivets, panel lines, full roof
- * detail (sunroof, roof rails, windshield + rear window shapes), chrome
- * bumpers, grille, glowing headlights, brake lights, glass windscreen,
- * tread tyres, hubcaps with gold rings, mirrors, door handles, plate.
- * Soft blob shadow underneath.
- *
- * Roof layout (top view, +Z = front): bonnet z 1.0..2.1, windshield
- * z 0.75..1.15 (angled glass), roof panel z -1.2..0.75, rear window
- * z -1.2..-1.55 (angled glass), boot z -1.55..-2.2.
- */
-export const CarBody: React.FC<{
-	color: string;
-	brake: boolean;
-	wheelSpin: number;
-}> = ({color, brake, wheelSpin}) => {
-	const paint = React.useMemo(
-		() =>
-			new THREE.MeshPhysicalMaterial({
-				color,
-				metalness: 0.72,
-				roughness: 0.22,
-				clearcoat: 1,
-				clearcoatRoughness: 0.12,
-			}),
-		[color],
-	);
-	const chrome = React.useMemo(
-		() =>
-			new THREE.MeshStandardMaterial({
-				color: '#D9D9D9',
-				metalness: 1,
-				roughness: 0.15,
-			}),
-		[],
-	);
-	const brass = React.useMemo(
-		() =>
-			new THREE.MeshStandardMaterial({
-				color: '#C9A227',
-				metalness: 1,
-				roughness: 0.28,
-			}),
-		[],
-	);
-	const glass = React.useMemo(
-		() =>
-			new THREE.MeshPhysicalMaterial({
-				color: '#9FC8E8',
-				transparent: true,
-				opacity: 0.55,
-				roughness: 0.06,
-				metalness: 0.1,
-			}),
-		[],
-	);
-	const darkGlass = React.useMemo(
-		() =>
-			new THREE.MeshPhysicalMaterial({
-				color: '#1E3A4F',
-				roughness: 0.08,
-				metalness: 0.3,
-				clearcoat: 1,
-			}),
-		[],
-	);
-	const tyre = React.useMemo(
-		() => new THREE.MeshStandardMaterial({color: '#1C1C1C', roughness: 0.92}),
-		[],
-	);
-	const hub = React.useMemo(
-		() =>
-			new THREE.MeshStandardMaterial({
-				color: '#C0C0C0',
-				metalness: 0.9,
-				roughness: 0.22,
-			}),
-		[],
-	);
-	const tread = React.useMemo(
-		() => new THREE.MeshStandardMaterial({color: '#4A4A4A', roughness: 0.9}),
-		[],
-	);
-	const panelLine = React.useMemo(
-		() => new THREE.MeshStandardMaterial({color: '#000000', roughness: 0.6}),
-		[],
-	);
+export const CAR_HEX: Record<CarColor, string> = {
+  red: '#C8102E',
+  blue: '#1565C0',
+  silver: '#C8CDD2',
+  green: '#2E9E44',
+  white: '#F2F2F2',
+  gold: '#D4A017',
+};
 
-	const wheel = (x: number, z: number) => (
-		// outer group turns the cylinder axle (local Y) onto the world X axle
-		<group key={`${x},${z}`} position={[x, 0.36, z]} rotation={[0, 0, Math.PI / 2]}>
-			{/* inner group spins around local Y == the axle */}
-			<group rotation={[0, wheelSpin, 0]}>
-				<mesh material={tyre}>
-					<cylinderGeometry args={[0.36, 0.36, 0.26, 24]} />
-				</mesh>
-				<mesh material={tread} rotation={[Math.PI / 2, 0, 0]}>
-					<torusGeometry args={[0.36, 0.022, 8, 24]} />
-				</mesh>
-				{/* hubcap with gold ring — reads from the side AND from above */}
-				<mesh material={hub} position={[0, 0.13, 0]}>
-					<cylinderGeometry args={[0.2, 0.2, 0.02, 20]} />
-				</mesh>
-				<mesh material={brass} position={[0, 0.145, 0]}>
-					<torusGeometry args={[0.14, 0.018, 8, 24]} />
-				</mesh>
-				<mesh material={hub} position={[0, -0.13, 0]}>
-					<cylinderGeometry args={[0.2, 0.2, 0.02, 20]} />
-				</mesh>
-				<mesh material={brass} position={[0, -0.145, 0]}>
-					<torusGeometry args={[0.14, 0.018, 8, 24]} />
-				</mesh>
-			</group>
-		</group>
-	);
+const paint = (color: string) =>
+  new THREE.MeshPhysicalMaterial({
+    color,
+    metalness: 0.42,
+    roughness: 0.17,
+    clearcoat: 1,
+    clearcoatRoughness: 0.07,
+    reflectivity: 0.85,
+  });
 
-	// gold rivets along the beltline (both sides) — wobblytale rivet rows
-	const rivets: number[] = [];
-	for (let z = -1.9; z <= 1.9; z += 0.38) rivets.push(z);
+const gold = () =>
+  new THREE.MeshStandardMaterial({
+    color: '#D4A017',
+    metalness: 0.92,
+    roughness: 0.22,
+    emissive: '#4A3405',
+    emissiveIntensity: 0.25,
+  });
 
-	return (
-		<group>
-			{/* soft blob shadow (ellipse so it never reads as a dark rectangle) */}
-			<mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[2.4, 1.25, 1]}>
-				<circleGeometry args={[1, 24]} />
-				<meshBasicMaterial color="#000000" transparent opacity={0.22} />
-			</mesh>
-			{/* main lower body */}
-			<mesh material={paint} position={[0, 0.62, 0]}>
-				<boxGeometry args={[1.9, 0.52, 4.4]} />
-			</mesh>
-			{/* shoulder / upper body */}
-			<mesh material={paint} position={[0, 0.92, -0.15]}>
-				<boxGeometry args={[1.8, 0.28, 3.4]} />
-			</mesh>
-			{/* bonnet */}
-			<mesh material={paint} position={[0, 0.86, 1.55]}>
-				<boxGeometry args={[1.82, 0.2, 1.15]} />
-			</mesh>
-			{/* boot */}
-			<mesh material={paint} position={[0, 0.86, -1.75]}>
-				<boxGeometry args={[1.82, 0.2, 0.9]} />
-			</mesh>
-			{/* cabin glass */}
-			<mesh material={glass} position={[0, 1.18, -0.25]}>
-				<boxGeometry args={[1.62, 0.55, 2.1]} />
-			</mesh>
-			{/* roof (thicker so the driver clearly sits UNDER it) */}
-			<mesh material={paint} position={[0, 1.48, -0.25]}>
-				<boxGeometry args={[1.66, 0.14, 2.0]} />
-			</mesh>
-			{/* ---- ROOF DETAIL (seen from above) ---- */}
-			{/* sunroof: dark glass inset in the roof panel */}
-			<mesh material={darkGlass} position={[0, 1.555, -0.05]}>
-				<boxGeometry args={[1.0, 0.02, 0.85]} />
-			</mesh>
-			{/* sunroof gold frame */}
-			<mesh material={brass} position={[0, 1.552, -0.05]}>
-				<boxGeometry args={[1.08, 0.015, 0.93]} />
-			</mesh>
-			{/* roof rails (front-to-back chrome bars) */}
-			<mesh material={chrome} position={[-0.68, 1.58, -0.25]}>
-				<boxGeometry args={[0.07, 0.06, 1.9]} />
-			</mesh>
-			<mesh material={chrome} position={[0.68, 1.58, -0.25]}>
-				<boxGeometry args={[0.07, 0.06, 1.9]} />
-			</mesh>
-			{/* windshield shape on the roof front edge (angled dark glass) */}
-			<mesh material={darkGlass} position={[0, 1.42, 0.82]} rotation={[0.5, 0, 0]}>
-				<boxGeometry args={[1.5, 0.03, 0.55]} />
-			</mesh>
-			{/* rear window shape on the roof rear edge */}
-			<mesh material={darkGlass} position={[0, 1.42, -1.32]} rotation={[-0.5, 0, 0]}>
-				<boxGeometry args={[1.5, 0.03, 0.5]} />
-			</mesh>
-			{/* gold pinstripe along the roof edge */}
-			<mesh material={brass} position={[-0.84, 1.5, -0.25]}>
-				<boxGeometry args={[0.03, 0.03, 2.0]} />
-			</mesh>
-			<mesh material={brass} position={[0.84, 1.5, -0.25]}>
-				<boxGeometry args={[0.03, 0.03, 2.0]} />
-			</mesh>
-			{/* ---- PANEL LINES (thin dark seams) ---- */}
-			{/* bonnet seam */}
-			<mesh material={panelLine} position={[0, 0.965, 0.98]}>
-				<boxGeometry args={[1.7, 0.012, 0.03]} />
-			</mesh>
-			{/* boot seam */}
-			<mesh material={panelLine} position={[0, 0.965, -1.32]}>
-				<boxGeometry args={[1.7, 0.012, 0.03]} />
-			</mesh>
-			{/* door seams (both sides) */}
-			<mesh material={panelLine} position={[-0.955, 0.8, 0.1]}>
-				<boxGeometry args={[0.012, 0.4, 0.03]} />
-			</mesh>
-			<mesh material={panelLine} position={[0.955, 0.8, 0.1]}>
-				<boxGeometry args={[0.012, 0.4, 0.03]} />
-			</mesh>
-			{/* gold pinstripe along the body side */}
-			<mesh material={brass} position={[-0.96, 0.62, 0]}>
-				<boxGeometry args={[0.02, 0.04, 4.0]} />
-			</mesh>
-			<mesh material={brass} position={[0.96, 0.62, 0]}>
-				<boxGeometry args={[0.02, 0.04, 4.0]} />
-			</mesh>
-			{/* gold rivets along the beltline (both sides) */}
-			{rivets.map((z) => (
-				<group key={z}>
-					<mesh material={brass} position={[-0.96, 0.88, z]}>
-						<sphereGeometry args={[0.028, 8, 6]} />
-					</mesh>
-					<mesh material={brass} position={[0.96, 0.88, z]}>
-						<sphereGeometry args={[0.028, 8, 6]} />
-					</mesh>
-				</group>
-			))}
-			{/* windscreen shine stripe */}
-			<mesh position={[0, 1.22, 0.82]} rotation={[0.12, 0, 0]}>
-				<planeGeometry args={[1.5, 0.1]} />
-				<meshBasicMaterial color="#FFFFFF" transparent opacity={0.55} />
-			</mesh>
-			{/* white specular highlight stripe along the body side (fake sky reflection) */}
-			<mesh position={[0.96, 0.78, 0]} rotation={[0, Math.PI / 2, 0]}>
-				<planeGeometry args={[3.6, 0.12]} />
-				<meshBasicMaterial color="#FFFFFF" transparent opacity={0.22} />
-			</mesh>
-			<mesh position={[-0.96, 0.78, 0]} rotation={[0, -Math.PI / 2, 0]}>
-				<planeGeometry args={[3.6, 0.12]} />
-				<meshBasicMaterial color="#FFFFFF" transparent opacity={0.22} />
-			</mesh>
-			{/* chrome bumpers with brass trim */}
-			<mesh material={chrome} position={[0, 0.42, 2.24]}>
-				<boxGeometry args={[1.92, 0.16, 0.1]} />
-			</mesh>
-			<mesh material={brass} position={[0, 0.51, 2.24]}>
-				<boxGeometry args={[1.92, 0.03, 0.1]} />
-			</mesh>
-			<mesh material={chrome} position={[0, 0.42, -2.24]}>
-				<boxGeometry args={[1.92, 0.16, 0.1]} />
-			</mesh>
-			<mesh material={brass} position={[0, 0.51, -2.24]}>
-				<boxGeometry args={[1.92, 0.03, 0.1]} />
-			</mesh>
-			{/* chrome window trim */}
-			<mesh material={chrome} position={[0, 1.47, -0.25]}>
-				<boxGeometry args={[1.68, 0.03, 2.02]} />
-			</mesh>
-			{/* grille */}
-			<mesh position={[0, 0.55, 2.21]}>
-				<boxGeometry args={[1.1, 0.18, 0.04]} />
-				<meshStandardMaterial color="#222222" roughness={0.6} metalness={0.4} />
-			</mesh>
-			{/* grille gold bars */}
-			<mesh material={brass} position={[0, 0.55, 2.24]}>
-				<boxGeometry args={[1.0, 0.03, 0.02]} />
-			</mesh>
-			{/* headlights (glow) */}
-			<mesh position={[-0.62, 0.72, 2.21]}>
-				<boxGeometry args={[0.42, 0.16, 0.06]} />
-				<meshStandardMaterial
-					color="#FFF6C9"
-					emissive="#FFF6C9"
-					emissiveIntensity={2.2}
-				/>
-			</mesh>
-			<mesh position={[0.62, 0.72, 2.21]}>
-				<boxGeometry args={[0.42, 0.16, 0.06]} />
-				<meshStandardMaterial
-					color="#FFF6C9"
-					emissive="#FFF6C9"
-					emissiveIntensity={2.2}
-				/>
-			</mesh>
-			{/* brake lights */}
-			<mesh position={[-0.62, 0.78, -2.21]}>
-				<boxGeometry args={[0.42, 0.14, 0.06]} />
-				<meshStandardMaterial
-					color="#FF2020"
-					emissive="#FF2020"
-					emissiveIntensity={brake ? 3.5 : 0.35}
-				/>
-			</mesh>
-			<mesh position={[0.62, 0.78, -2.21]}>
-				<boxGeometry args={[0.42, 0.14, 0.06]} />
-				<meshStandardMaterial
-					color="#FF2020"
-					emissive="#FF2020"
-					emissiveIntensity={brake ? 3.5 : 0.35}
-				/>
-			</mesh>
-			{/* mirrors */}
-			<mesh material={chrome} position={[-1.0, 1.05, 0.75]}>
-				<boxGeometry args={[0.1, 0.14, 0.22]} />
-			</mesh>
-			<mesh material={chrome} position={[1.0, 1.05, 0.75]}>
-				<boxGeometry args={[0.1, 0.14, 0.22]} />
-			</mesh>
-			{/* door handles */}
-			<mesh material={chrome} position={[-0.96, 0.95, 0.45]}>
-				<boxGeometry args={[0.03, 0.05, 0.28]} />
-			</mesh>
-			<mesh material={chrome} position={[0.96, 0.95, 0.45]}>
-				<boxGeometry args={[0.03, 0.05, 0.28]} />
-			</mesh>
-			<mesh material={chrome} position={[-0.96, 0.95, -0.75]}>
-				<boxGeometry args={[0.03, 0.05, 0.28]} />
-			</mesh>
-			<mesh material={chrome} position={[0.96, 0.95, -0.75]}>
-				<boxGeometry args={[0.03, 0.05, 0.28]} />
-			</mesh>
-			{/* licence plate */}
-			<mesh position={[0, 0.42, 2.29]}>
-				<boxGeometry args={[0.62, 0.16, 0.02]} />
-				<meshStandardMaterial color="#F5F5F5" roughness={0.4} />
-			</mesh>
-			{/* wheels */}
-			{wheel(-0.95, 1.45)}
-			{wheel(0.95, 1.45)}
-			{wheel(-0.95, -1.45)}
-			{wheel(0.95, -1.45)}
-		</group>
-	);
+const glass = () =>
+  new THREE.MeshPhysicalMaterial({
+    color: '#BFE3F2',
+    metalness: 0.12,
+    roughness: 0.05,
+    transparent: true,
+    opacity: 0.29,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+
+const mesh = (geo: THREE.BufferGeometry, mat: THREE.Material) => new THREE.Mesh(geo, mat);
+
+/** Rear lamps are red in every frame; braking only increases their glow. */
+const brakeMaterial = (braking: boolean) =>
+  new THREE.MeshStandardMaterial({
+    color: '#EF2B2B',
+    emissive: '#EF2B2B',
+    emissiveIntensity: braking ? 3.2 : 0.9,
+    metalness: 0.15,
+    roughness: 0.22,
+  });
+
+const makeWheel = (spinning: number): THREE.Group => {
+  const wheel = new THREE.Group();
+
+  const tire = mesh(cylGeo(0.42, 0.42, 0.28, 28), new THREE.MeshStandardMaterial({
+    color: '#15181D',
+    roughness: 0.86,
+    metalness: 0.05,
+  }));
+  tire.rotation.z = Math.PI / 2;
+  wheel.add(tire);
+
+  const rim = mesh(cylGeo(0.27, 0.27, 0.3, 24), gold());
+  rim.rotation.z = Math.PI / 2;
+  wheel.add(rim);
+
+  const ring = mesh(torusGeo(0.3, 0.035, 8, 28), new THREE.MeshStandardMaterial({
+    color: '#F6D774',
+    metalness: 0.95,
+    roughness: 0.18,
+  }));
+  ring.rotation.y = Math.PI / 2;
+  wheel.add(ring);
+
+  for (let i = 0; i < 6; i++) {
+    const spoke = mesh(boxGeo(0.32, 0.05, 0.07), gold());
+    spoke.rotation.x = (i * Math.PI) / 3;
+    wheel.add(spoke);
+  }
+
+  wheel.rotation.x = spinning;
+  return wheel;
+};
+
+export const makeCar = (state: CarState): THREE.Group => {
+  const car = new THREE.Group();
+  car.position.set(state.x, state.y, state.z);
+  car.rotation.y = state.rotationY;
+
+  const bodyPaint = paint(CAR_HEX[state.color]);
+  const trim = gold();
+
+  const shadow = mesh(
+    planeGeo(2.9, 5.0),
+    new THREE.MeshBasicMaterial({
+      color: '#0A1420',
+      transparent: true,
+      opacity: 0.32,
+      depthWrite: false,
+    }),
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.012;
+  car.add(shadow);
+
+  const bodyHeight = state.sports ? 0.52 : 0.64;
+  const lower = mesh(boxGeo(2.1, bodyHeight, 4.2), bodyPaint);
+  lower.position.y = state.sports ? 0.68 : 0.74;
+  car.add(lower);
+
+  const lowerGloss = mesh(
+    boxGeo(2.12, 0.08, 4.05),
+    new THREE.MeshStandardMaterial({
+      color: '#FFFFFF',
+      transparent: true,
+      opacity: 0.18,
+      metalness: 0.6,
+      roughness: 0.1,
+    }),
+  );
+  lowerGloss.position.y = state.sports ? 0.95 : 1.04;
+  car.add(lowerGloss);
+
+  const hood = mesh(boxGeo(1.94, 0.18, 1.24), bodyPaint);
+  hood.position.set(0, state.sports ? 0.98 : 1.04, 1.4);
+  car.add(hood);
+
+  const trunk = mesh(boxGeo(1.94, 0.16, 0.9), bodyPaint);
+  trunk.position.set(0, state.sports ? 0.98 : 1.04, -1.58);
+  car.add(trunk);
+
+  const roofY = state.sports ? 1.4 : 1.52;
+  const roof = mesh(boxGeo(1.62, 0.11, 1.66), bodyPaint);
+  roof.position.set(0, roofY, -0.16);
+  car.add(roof);
+
+  const glassMat = glass();
+  const windshield = mesh(planeGeo(1.52, 0.62), glassMat);
+  windshield.position.set(0, roofY - 0.34, 0.86);
+  windshield.rotation.x = -0.3;
+  car.add(windshield);
+
+  const rearWindow = mesh(planeGeo(1.5, 0.54), glassMat);
+  rearWindow.position.set(0, roofY - 0.34, -1.16);
+  rearWindow.rotation.x = 0.3;
+  car.add(rearWindow);
+
+  for (const side of [-1, 1]) {
+    const sideGlass = mesh(planeGeo(1.5, 0.52), glassMat);
+    sideGlass.position.set(side * 0.88, roofY - 0.34, -0.16);
+    sideGlass.rotation.y = Math.PI / 2;
+    car.add(sideGlass);
+
+    for (const zPos of [0.82, -1.12]) {
+      const pillar = mesh(boxGeo(0.12, 0.66, 0.12), bodyPaint);
+      pillar.position.set(side * 0.87, roofY - 0.34, zPos);
+      car.add(pillar);
+    }
+
+    const sill = mesh(boxGeo(0.05, 0.06, 3.9), trim);
+    sill.position.set(side * 1.06, 0.48, 0);
+    car.add(sill);
+
+    const roofRail = mesh(boxGeo(0.05, 0.05, 1.7), trim);
+    roofRail.position.set(side * 0.68, roofY + 0.09, -0.16);
+    car.add(roofRail);
+
+    for (let i = 0; i < 9; i++) {
+      const rivet = mesh(sphereGeo(0.035, 8), trim);
+      rivet.position.set(side * 1.07, 0.72, -1.7 + i * 0.42);
+      car.add(rivet);
+    }
+  }
+
+  const lamps = brakeMaterial(state.brake);
+  for (const side of [-1, 1]) {
+    const rearLamp = mesh(boxGeo(0.44, 0.2, 0.09), lamps);
+    rearLamp.position.set(side * 0.72, 0.88, -2.13);
+    car.add(rearLamp);
+
+    const lampGlint = mesh(
+      planeGeo(0.34, 0.1),
+      new THREE.MeshBasicMaterial({
+        color: '#FF8080',
+        transparent: true,
+        opacity: state.brake ? 0.9 : 0.45,
+        side: THREE.DoubleSide,
+      }),
+    );
+    lampGlint.position.set(side * 0.72, 0.91, -2.19);
+    lampGlint.rotation.y = Math.PI;
+    car.add(lampGlint);
+
+    const headLamp = mesh(
+      boxGeo(0.42, 0.16, 0.08),
+      new THREE.MeshStandardMaterial({
+        color: '#FFF3C4',
+        emissive: '#FFE9A8',
+        emissiveIntensity: 1.4,
+        roughness: 0.2,
+      }),
+    );
+    headLamp.position.set(side * 0.72, 0.9, 2.13);
+    car.add(headLamp);
+  }
+
+  const grille = mesh(
+    boxGeo(1.1, 0.24, 0.06),
+    new THREE.MeshStandardMaterial({color: '#202733', metalness: 0.8, roughness: 0.35}),
+  );
+  grille.position.set(0, 0.72, 2.14);
+  car.add(grille);
+
+  if (state.sports) {
+    const wing = mesh(boxGeo(1.96, 0.08, 0.42), bodyPaint);
+    wing.position.set(0, 1.36, -1.9);
+    car.add(wing);
+    for (const side of [-1, 1]) {
+      const stand = mesh(boxGeo(0.08, 0.34, 0.08), trim);
+      stand.position.set(side * 0.72, 1.19, -1.9);
+      car.add(stand);
+    }
+  }
+
+  for (const xPos of [-1.02, 1.02]) {
+    for (const zPos of [-1.36, 1.36]) {
+      const wheel = makeWheel(state.wheelSpin);
+      wheel.position.set(xPos, 0.42, zPos);
+      car.add(wheel);
+    }
+  }
+
+  return car;
 };

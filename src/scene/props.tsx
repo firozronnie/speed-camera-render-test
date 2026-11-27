@@ -1,439 +1,324 @@
-import React from 'react';
 import * as THREE from 'three';
-import {mulberry32, banknoteTexture, checkTexture, codeTexture, overheadTexture, textTexture, tvTexture} from './textures';
+import type {PropState} from './shots-full';
+import {
+  banknoteTexture,
+  boxGeo,
+  checkTexture,
+  codeTexture,
+  cylGeo,
+  flatMaterial,
+  planeGeo,
+  questionTexture,
+  roadTextTexture,
+  signTexture,
+  sphereGeo,
+  torusGeo,
+  tvTexture,
+} from './textures';
 
-function useMemoTexture(fn: () => THREE.CanvasTexture) {
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	return React.useMemo(fn, []);
-}
+const standard = (color: string, metalness = 0.15, roughness = 0.55) =>
+  new THREE.MeshStandardMaterial({color, metalness, roughness});
 
-/** Tall ladder leaning on the camera pole (inventor climbs it). */
-export const Ladder: React.FC<{position: [number, number, number]; rotY?: number}> = ({
-	position,
-	rotY = 0,
-}) => (
-	<group position={position} rotation={[0, rotY, 0]}>
-		{/* leaning ~12° toward the pole (top toward local -X; rotate the group so -X faces the pole) */}
-		<group rotation={[0, 0, 0.2]}>
-			<mesh position={[-0.35, 2.6, 0]}>
-				<boxGeometry args={[0.09, 5.4, 0.09]} />
-				<meshStandardMaterial color="#8D6E63" roughness={0.85} />
-			</mesh>
-			<mesh position={[0.35, 2.6, 0]}>
-				<boxGeometry args={[0.09, 5.4, 0.09]} />
-				<meshStandardMaterial color="#8D6E63" roughness={0.85} />
-			</mesh>
-			{[0.6, 1.3, 2.0, 2.7, 3.4, 4.1, 4.8].map((y) => (
-				<mesh key={y} position={[0, y, 0]}>
-					<cylinderGeometry args={[0.035, 0.035, 0.66, 8]} />
-					<meshStandardMaterial color="#C9A227" metalness={0.9} roughness={0.3} />
-				</mesh>
-			))}
-		</group>
-	</group>
-);
-
-/** Black mailbox on a post, red flag up (suburban street). */
-export const Mailbox: React.FC<{position: [number, number, number]}> = ({position}) => (
-	<group position={position}>
-		<mesh position={[0, 0.55, 0]}>
-			<boxGeometry args={[0.14, 1.1, 0.14]} />
-			<meshStandardMaterial color="#5D4037" roughness={0.9} />
-		</mesh>
-		{/* rounded box body */}
-		<mesh position={[0, 1.3, 0]}>
-			<boxGeometry args={[0.55, 0.4, 0.4]} />
-			<meshStandardMaterial color="#1A1A1A" roughness={0.5} metalness={0.4} />
-		</mesh>
-		{/* rounded top: full cylinder lying along Z, bottom half hidden inside the box */}
-		<mesh position={[0, 1.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
-			<cylinderGeometry args={[0.2, 0.2, 0.55, 16]} />
-			<meshStandardMaterial color="#1A1A1A" roughness={0.5} metalness={0.4} />
-		</mesh>
-		{/* red flag, raised */}
-		<mesh position={[0.3, 1.55, 0]}>
-			<boxGeometry args={[0.04, 0.35, 0.14]} />
-			<meshStandardMaterial color="#E53935" roughness={0.5} />
-		</mesh>
-		{/* brass number plate */}
-		<mesh position={[0, 1.3, 0.21]}>
-			<boxGeometry args={[0.2, 0.12, 0.02]} />
-			<meshStandardMaterial color="#C9A227" metalness={0.9} roughness={0.3} />
-		</mesh>
-	</group>
-);
-
-/** The $2,000 check, held up by the driver. */
-export const Check: React.FC<{position: [number, number, number]; rotY?: number; tilt?: number}> = ({
-	position,
-	rotY = 0,
-	tilt = 0,
-}) => {
-	const tex = useMemoTexture(checkTexture);
-	return (
-		<group position={position} rotation={[tilt, rotY, 0]}>
-			<mesh position={[0, 0, -0.02]}>
-				<boxGeometry args={[1.0, 0.5, 0.02]} />
-				<meshStandardMaterial color="#E8E8E8" roughness={0.6} />
-			</mesh>
-			<mesh position={[0, 0, 0]}>
-				<planeGeometry args={[0.96, 0.48]} />
-				<meshBasicMaterial map={tex} />
-			</mesh>
-		</group>
-	);
+const addCash = (
+  group: THREE.Group,
+  count: number,
+  mode: 'burst' | 'rain',
+) => {
+  const dummy = new THREE.Object3D();
+  const notes = new THREE.InstancedMesh(
+    planeGeo(0.42, 0.21),
+    flatMaterial(banknoteTexture()),
+    count,
+  );
+  for (let i = 0; i < count; i++) {
+    const a = i * 2.39996;
+    if (mode === 'burst') {
+      const r = 0.35 + (i % 7) * 0.2;
+      dummy.position.set(
+        Math.cos(a) * r * 0.85,
+        1.05 + Math.sin(i * 1.7) * 1.15,
+        0.35 + Math.cos(i * 0.9) * 0.45,
+      );
+      dummy.rotation.set(0, Math.sin(a) * 0.5, a * 0.31);
+    } else {
+      const column = i % 9;
+      const row = Math.floor(i / 9);
+      dummy.position.set(
+        -1.45 + column * 0.36 + Math.sin(i * 2.1) * 0.08,
+        0.55 + row * 0.72 + Math.cos(i) * 0.18,
+        -0.6 + (i % 4) * 0.4,
+      );
+      dummy.rotation.set(0, Math.sin(a) * 0.4, a * 0.27);
+    }
+    dummy.scale.setScalar(1);
+    dummy.updateMatrix();
+    notes.setMatrixAt(i, dummy.matrix);
+  }
+  notes.instanceMatrix.needsUpdate = true;
+  group.add(notes);
 };
 
-/** The inventor's black tablet showing the new rule as code. */
-export const Tablet: React.FC<{position: [number, number, number]; rotY?: number}> = ({
-	position,
-	rotY = 0,
-}) => {
-	const tex = useMemoTexture(codeTexture);
-	return (
-		<group position={position} rotation={[-0.25, rotY, 0]}>
-			<mesh position={[0, 0, -0.015]}>
-				<boxGeometry args={[0.62, 0.78, 0.03]} />
-				<meshStandardMaterial color="#111111" roughness={0.35} metalness={0.5} />
-			</mesh>
-			<mesh position={[0, 0, 0]}>
-				<planeGeometry args={[0.56, 0.72]} />
-				<meshBasicMaterial map={tex} />
-			</mesh>
-		</group>
-	);
-};
+export const makeProp = (state: PropState): THREE.Group => {
+  const group = new THREE.Group();
+  group.position.set(state.x, state.y, state.z);
+  group.rotation.y = state.rotationY;
+  group.scale.setScalar(state.scale);
 
-/** Green banknotes — mode 'burst' flies out of the red car, 'rain' falls from the sky. */
-export const Banknotes: React.FC<{
-	mode: 'burst' | 'rain';
-	frame: number;
-	origin?: [number, number, number];
-	count?: number;
-}> = ({mode, frame, origin = [2.5, 1.2, -10], count = 48}) => {
-	const tex = useMemoTexture(banknoteTexture);
-	const mesh = React.useMemo(() => {
-		const geo = new THREE.PlaneGeometry(0.42, 0.21);
-		const mat = new THREE.MeshBasicMaterial({map: tex, side: THREE.DoubleSide});
-		const m = new THREE.InstancedMesh(geo, mat, count);
-		const dummy = new THREE.Object3D();
-		const rnd = mulberry32(mode === 'burst' ? 77 : 78);
-		const seeds: {a: number; b: number; c: number; d: number}[] = [];
-		for (let i = 0; i < count; i++) {
-			seeds.push({a: rnd(), b: rnd(), c: rnd(), d: rnd()});
-		}
-		// store seeds on the mesh for the per-frame update
-		(m as unknown as {userData: {seeds: typeof seeds}}).userData = {seeds};
-		m.instanceMatrix.needsUpdate = true;
-		return m;
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [mode, count]);
-	React.useMemo(() => {
-		const dummy = new THREE.Object3D();
-		const seeds = (mesh as unknown as {userData: {seeds: {a: number; b: number; c: number; d: number}[]}}).userData.seeds;
-		for (let i = 0; i < count; i++) {
-			const s = seeds[i];
-			if (mode === 'burst') {
-				// notes fly out of the car and flutter down over ~2.5 s (75 frames)
-				const t = Math.min(1, (frame % 75) / 75);
-				const dir = s.a * Math.PI * 2;
-				const dist = 0.5 + t * (1.5 + s.b * 3);
-				dummy.position.set(
-					origin[0] + Math.cos(dir) * dist,
-					Math.max(0.15, origin[1] + t * 1.2 - t * t * 2.2 + Math.sin(frame * 0.3 + s.c * 9) * 0.15),
-					origin[2] + Math.sin(dir) * dist - t * 2,
-				);
-				dummy.rotation.set(frame * 0.05 + s.c * 6, s.d * Math.PI * 2 + frame * 0.03, Math.sin(frame * 0.2 + i) * 0.6);
-			} else {
-				// rain: notes fall from the sky in a loop, swaying and spinning
-				const fall = ((frame * 0.09 + s.a * 9) % 9) / 9;
-				dummy.position.set(
-					origin[0] + (s.b - 0.5) * 10 + Math.sin(frame * 0.12 + s.c * 8) * 0.7,
-					9 - fall * 9,
-					origin[2] + (s.d - 0.5) * 8,
-				);
-				dummy.rotation.set(fall * 6 + s.a * 3, s.b * Math.PI * 2 + frame * 0.04, Math.sin(frame * 0.15 + i * 1.7) * 0.5);
-			}
-			dummy.updateMatrix();
-			mesh.setMatrixAt(i, dummy.matrix);
-		}
-		mesh.instanceMatrix.needsUpdate = true;
-	}, [mesh, frame, mode, count, origin]);
-	return <primitive object={mesh} />;
-};
+  switch (state.kind) {
+    case 'fineSign': {
+      const post = new THREE.Mesh(cylGeo(0.07, 0.09, 2.05, 12), standard('#8A939E', 0.8, 0.35));
+      post.position.y = 1.02;
+      group.add(post);
+      const backing = new THREE.Mesh(boxGeo(2.0, 1.06, 0.12), standard('#1B2940', 0.5, 0.4));
+      backing.position.y = 2.12;
+      group.add(backing);
+      const board = new THREE.Mesh(
+        planeGeo(1.88, 0.94),
+        flatMaterial(signTexture(state.text ?? '$150')),
+      );
+      board.position.set(0, 2.12, 0.08);
+      group.add(board);
+      break;
+    }
+    case 'roadText': {
+      const paint = new THREE.Mesh(
+        planeGeo(5.2, 2.6),
+        flatMaterial(roadTextTexture(state.text ?? 'SLOW!')),
+      );
+      paint.rotation.x = -Math.PI / 2;
+      paint.position.y = 0.01;
+      group.add(paint);
+      break;
+    }
+    case 'ladder': {
+      for (const side of [-1, 1]) {
+        const rail = new THREE.Mesh(boxGeo(0.09, 3.7, 0.09), standard('#C0C6CC', 0.75, 0.3));
+        rail.position.set(side * 0.42, 1.85, 0);
+        group.add(rail);
+        const foot = new THREE.Mesh(cylGeo(0.08, 0.08, 0.2, 10), standard('#333A44', 0.4, 0.7));
+        foot.rotation.z = Math.PI / 2;
+        foot.position.set(side * 0.42, 0.08, 0);
+        group.add(foot);
+      }
+      for (let i = 0; i < 11; i++) {
+        const rung = new THREE.Mesh(boxGeo(0.94, 0.06, 0.08), standard('#D4A017', 0.85, 0.28));
+        rung.position.set(0, 0.3 + i * 0.33, 0);
+        group.add(rung);
+      }
+      break;
+    }
+    case 'tablet': {
+      const shell = new THREE.Mesh(boxGeo(1.1, 0.72, 0.08), standard('#1B2434', 0.7, 0.28));
+      group.add(shell);
+      const screen = new THREE.Mesh(
+        planeGeo(1.02, 0.64),
+        flatMaterial(codeTexture(state.text ?? 'if (speed < limit) flash()')),
+      );
+      screen.position.z = 0.05;
+      group.add(screen);
+      const glow = new THREE.PointLight('#7DE2A9', 2.2, 4);
+      glow.position.z = 0.5;
+      group.add(glow);
+      break;
+    }
+    case 'mailbox': {
+      const post = new THREE.Mesh(cylGeo(0.07, 0.09, 1.15, 12), standard('#6B7280', 0.55, 0.6));
+      post.position.y = 0.57;
+      group.add(post);
+      const box = new THREE.Mesh(boxGeo(0.62, 0.42, 0.46), standard('#1565C0', 0.35, 0.4));
+      box.position.y = 1.32;
+      group.add(box);
+      const lid = new THREE.Mesh(boxGeo(0.08, 0.42, 0.46), standard('#1565C0', 0.35, 0.4));
+      lid.position.set(0.31, 1.53, 0);
+      group.add(lid);
+      const flag = new THREE.Mesh(boxGeo(0.06, 0.34, 0.06), standard('#EF2B2B', 0.3, 0.5));
+      flag.position.set(0.36, 1.58, 0);
+      group.add(flag);
+      const slot = new THREE.Mesh(boxGeo(0.4, 0.035, 0.02), standard('#0B1B2E', 0.2, 0.8));
+      slot.position.set(0, 1.32, 0.24);
+      group.add(slot);
+      break;
+    }
+    case 'check': {
+      const paper = new THREE.Mesh(planeGeo(1.9, 0.95), flatMaterial(checkTexture()));
+      group.add(paper);
+      const glint = new THREE.Mesh(
+        planeGeo(1.9, 0.95),
+        new THREE.MeshBasicMaterial({
+          color: '#FFFFFF',
+          transparent: true,
+          opacity: 0.12,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        }),
+      );
+      glint.position.z = 0.01;
+      group.add(glint);
+      break;
+    }
+    case 'cash':
+      addCash(group, state.count ?? 26, state.mode ?? 'burst');
+      break;
+    case 'question': {
+      const sign = new THREE.Mesh(planeGeo(1.35, 1.35), flatMaterial(questionTexture()));
+      group.add(sign);
+      break;
+    }
+    case 'overhead': {
+      for (const side of [-1, 1]) {
+        const post = new THREE.Mesh(cylGeo(0.1, 0.12, 4.7, 12), standard('#8A939E', 0.75, 0.38));
+        post.position.set(side * 2.6, 2.35, 0);
+        group.add(post);
+      }
+      const backing = new THREE.Mesh(boxGeo(5.0, 0.86, 0.16), standard('#0B6B3A', 0.25, 0.5));
+      backing.position.y = 4.6;
+      group.add(backing);
+      const face = new THREE.Mesh(
+        planeGeo(4.8, 0.68),
+        flatMaterial(signTexture('GOOD DRIVERS FLASHED', '#0B6B3A', '#FFFFFF')),
+      );
+      face.position.set(0, 4.6, 0.1);
+      group.add(face);
+      break;
+    }
+    case 'fence': {
+      for (let i = 0; i <= 12; i++) {
+        const post = new THREE.Mesh(boxGeo(0.08, 1.1, 0.08), standard('#E8EDF0', 0.2, 0.7));
+        post.position.set(-3 + i * 0.5, 0.55, 0);
+        group.add(post);
+      }
+      for (const y of [0.35, 0.85]) {
+        const rail = new THREE.Mesh(boxGeo(6.1, 0.08, 0.08), standard('#F4F6F7', 0.2, 0.65));
+        rail.position.set(0, y, 0);
+        group.add(rail);
+      }
+      break;
+    }
+    case 'livingRoom': {
+      const rug = new THREE.Mesh(
+        planeGeo(5.4, 3.4),
+        new THREE.MeshStandardMaterial({color: '#A63D3D', roughness: 0.95}),
+      );
+      rug.rotation.x = -Math.PI / 2;
+      rug.position.set(0, 0.02, 0.2);
+      group.add(rug);
+      const rugBorder = new THREE.Mesh(
+        torusGeo(1.6, 0.08, 8, 36),
+        standard('#D4A017', 0.5, 0.6),
+      );
+      rugBorder.rotation.x = -Math.PI / 2;
+      rugBorder.scale.set(1.5, 0.95, 1);
+      rugBorder.position.set(0, 0.04, 0.2);
+      group.add(rugBorder);
 
-/** The camera pole transformed into a JACKPOT machine (navy diagram mode). */
-export const JackpotMachine: React.FC = () => {
-	const label = useMemoTexture(() =>
-		textTexture({
-			bg: '#FFD400',
-			lines: [{text: 'JACKPOT $$$', size: 52, color: '#7A0C0C', y: 128}],
-			w: 512,
-			h: 256,
-		}),
-	);
-	const bulbs = React.useMemo(() => {
-		const arr: {x: number; y: number}[] = [];
-		for (let i = 0; i < 14; i++) {
-			const a = (i / 14) * Math.PI * 2;
-			arr.push({x: Math.cos(a) * 1.15, y: 6.3 + Math.sin(a) * 1.05});
-		}
-		return arr;
-	}, []);
-	return (
-		<group position={[-6.5, 0, -8]}>
-			{/* glowing bulb ring around the box */}
-			{bulbs.map((b, i) => (
-				<mesh key={i} position={[b.x, b.y, 0.55]}>
-					<sphereGeometry args={[0.09, 10, 8]} />
-					<meshStandardMaterial color="#FFE082" emissive="#FFC107" emissiveIntensity={2.5} />
-				</mesh>
-			))}
-			{/* JACKPOT $$$ label on the box front */}
-			<mesh position={[0, 6.3, 0.48]}>
-				<planeGeometry args={[1.25, 0.62]} />
-				<meshBasicMaterial map={label} />
-			</mesh>
-		</group>
-	);
-};
+      const sofa = new THREE.Mesh(boxGeo(3.3, 0.5, 0.95), standard('#2F5D8A', 0.1, 0.85));
+      sofa.position.set(0, 0.5, 0.85);
+      group.add(sofa);
+      const back = new THREE.Mesh(boxGeo(3.3, 0.78, 0.24), standard('#244A70', 0.1, 0.85));
+      back.position.set(0, 0.98, 1.26);
+      group.add(back);
+      for (const side of [-1, 1]) {
+        const arm = new THREE.Mesh(boxGeo(0.24, 0.66, 0.95), standard('#244A70', 0.1, 0.85));
+        arm.position.set(side * 1.55, 0.83, 0.85);
+        group.add(arm);
+      }
 
-/** Transparent lottery drum, gold frame, full of cash, JACKPOT sign above (navy mode). */
-export const LotteryDrum: React.FC<{position: [number, number, number]}> = ({position}) => {
-	const sign = useMemoTexture(() =>
-		textTexture({
-			bg: '#7A0C0C',
-			lines: [{text: 'JACKPOT', size: 72, color: '#FFD54F', y: 130}],
-			w: 512,
-			h: 256,
-		}),
-	);
-	const cash = React.useMemo(() => {
-		const rnd = mulberry32(31);
-		const arr: {x: number; y: number; z: number; r: number}[] = [];
-		for (let i = 0; i < 26; i++) {
-			arr.push({
-				x: (rnd() - 0.5) * 1.5,
-				y: 0.3 + rnd() * 1.1,
-				z: (rnd() - 0.5) * 1.5,
-				r: rnd() * Math.PI,
-			});
-		}
-		return arr;
-	}, []);
-	return (
-		<group position={position}>
-			{/* grass disc under the drum */}
-			<mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-				<circleGeometry args={[3.4, 32]} />
-				<meshStandardMaterial color="#2E7D32" roughness={0.95} />
-			</mesh>
-			{/* JACKPOT sign above */}
-			<mesh position={[0, 4.6, 0]}>
-				<boxGeometry args={[3.6, 1.2, 0.15]} />
-				<meshStandardMaterial color="#7A0C0C" roughness={0.5} />
-			</mesh>
-			<mesh position={[0, 4.6, 0.09]}>
-				<planeGeometry args={[3.4, 1.05]} />
-				<meshBasicMaterial map={sign} />
-			</mesh>
-			{/* gold frame: base + top ring + posts */}
-			<mesh position={[0, 0.25, 0]}>
-				<cylinderGeometry args={[1.35, 1.5, 0.5, 24]} />
-				<meshStandardMaterial color="#C9A227" metalness={0.9} roughness={0.3} />
-			</mesh>
-			<mesh position={[0, 2.6, 0]} rotation={[Math.PI / 2, 0, 0]}>
-				<torusGeometry args={[1.05, 0.09, 10, 32]} />
-				<meshStandardMaterial color="#C9A227" metalness={0.9} roughness={0.3} />
-			</mesh>
-			{/* glass cylinder */}
-			<mesh position={[0, 1.45, 0]}>
-				<cylinderGeometry args={[1.05, 1.05, 1.9, 24, 1, true]} />
-				<meshPhysicalMaterial color="#BFE3F7" transparent opacity={0.28} roughness={0.05} side={THREE.DoubleSide} />
-			</mesh>
-			{/* cash inside the drum */}
-			{cash.map((c, i) => (
-				<mesh key={i} position={[c.x, c.y, c.z]} rotation={[0, c.r, 0]}>
-					<boxGeometry args={[0.42, 0.06, 0.21]} />
-					<meshStandardMaterial color="#2E7D32" roughness={0.7} />
-				</mesh>
-			))}
-			{/* yellow light streaks */}
-			{[-1.6, -0.8, 0.8, 1.6].map((x) => (
-				<mesh key={x} position={[x, 1.6, -0.6]} rotation={[0, 0, 0.2]}>
-					<planeGeometry args={[0.1, 3.4]} />
-					<meshBasicMaterial color="#FFEB3B" transparent opacity={0.5} />
-				</mesh>
-			))}
-		</group>
-	);
-};
+      const tvCase = new THREE.Mesh(boxGeo(2.5, 1.5, 0.18), standard('#182338', 0.45, 0.35));
+      tvCase.position.set(0, 1.95, -1.8);
+      group.add(tvCase);
+      const screen = new THREE.Mesh(planeGeo(2.32, 1.32), flatMaterial(tvTexture()));
+      screen.position.set(0, 1.95, -1.69);
+      group.add(screen);
+      const stand = new THREE.Mesh(boxGeo(0.16, 0.8, 0.16), standard('#4B5563', 0.6, 0.4));
+      stand.position.set(0, 0.85, -1.8);
+      group.add(stand);
+      break;
+    }
+    case 'drum': {
+      const base = new THREE.Mesh(boxGeo(2.4, 0.24, 2.4), standard('#D4A017', 0.85, 0.26));
+      base.position.y = 0.12;
+      group.add(base);
+      const glassShell = new THREE.Mesh(
+        cylGeo(1.02, 1.02, 1.5, 32),
+        new THREE.MeshPhysicalMaterial({
+          color: '#BFE3F2',
+          transparent: true,
+          opacity: 0.24,
+          metalness: 0.1,
+          roughness: 0.06,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        }),
+      );
+      glassShell.position.y = 0.99;
+      group.add(glassShell);
+      for (const y of [0.25, 1.74]) {
+        const rim = new THREE.Mesh(torusGeo(1.03, 0.055, 10, 36), standard('#F6D774', 0.95, 0.18));
+        rim.rotation.x = Math.PI / 2;
+        rim.position.y = y;
+        group.add(rim);
+      }
+      const dummy = new THREE.Object3D();
+      const notes = new THREE.InstancedMesh(
+        planeGeo(0.34, 0.17),
+        flatMaterial(banknoteTexture()),
+        34,
+      );
+      for (let i = 0; i < 34; i++) {
+        const a = i * 2.39996;
+        const r = 0.2 + (i % 6) * 0.11;
+        dummy.position.set(
+          Math.cos(a) * r,
+          0.45 + (i % 7) * 0.18,
+          Math.sin(a) * r,
+        );
+        dummy.rotation.set(0, a, Math.sin(a) * 0.6);
+        dummy.updateMatrix();
+        notes.setMatrixAt(i, dummy.matrix);
+      }
+      notes.instanceMatrix.needsUpdate = true;
+      group.add(notes);
+      const glow = new THREE.PointLight('#FFD36B', 3, 7);
+      glow.position.set(0, 2.2, 0);
+      group.add(glow);
+      break;
+    }
+    case 'jackpot': {
+      const bodyMesh = new THREE.Mesh(boxGeo(1.7, 2.3, 0.95), standard('#7C1B2E', 0.35, 0.3));
+      bodyMesh.position.y = 1.15;
+      group.add(bodyMesh);
+      const trim = new THREE.Mesh(boxGeo(1.78, 2.38, 0.12), standard('#D4A017', 0.92, 0.2));
+      trim.position.z = 0.48;
+      group.add(trim);
+      const marquee = new THREE.Mesh(
+        planeGeo(1.56, 0.42),
+        flatMaterial(signTexture('JACKPOT', '#17233C', '#FFD400')),
+      );
+      marquee.position.set(0, 2.06, 0.56);
+      group.add(marquee);
+      for (let i = 0; i < 3; i++) {
+        const reel = new THREE.Mesh(
+          planeGeo(0.4, 0.62),
+          flatMaterial(signTexture('$', '#F7F7F2', '#1F6B45')),
+        );
+        reel.position.set(-0.52 + i * 0.52, 1.3, 0.57);
+        group.add(reel);
+      }
+      const tray = new THREE.Mesh(boxGeo(1.1, 0.14, 0.36), standard('#D4A017', 0.9, 0.22));
+      tray.position.set(0, 0.62, 0.6);
+      group.add(tray);
+      const lever = new THREE.Mesh(sphereGeo(0.14, 16), standard('#EF2B2B', 0.3, 0.3));
+      lever.position.set(0.98, 1.45, 0.35);
+      group.add(lever);
+      const leverRod = new THREE.Mesh(cylGeo(0.04, 0.04, 0.6, 10), standard('#C8CDD2', 0.9, 0.2));
+      leverRod.position.set(0.98, 1.15, 0.35);
+      group.add(leverRod);
+      const glow = new THREE.PointLight('#FFD36B', 3.2, 7);
+      glow.position.set(0, 2.2, 1.2);
+      group.add(glow);
+      break;
+    }
+  }
 
-/** Green overhead highway sign on a gantry. */
-export const OverheadSign: React.FC<{position: [number, number, number]}> = ({position}) => {
-	const tex = useMemoTexture(overheadTexture);
-	return (
-		<group position={position}>
-			<mesh position={[-6.4, 3.2, 0]}>
-				<boxGeometry args={[0.25, 6.4, 0.25]} />
-				<meshStandardMaterial color="#616161" metalness={0.6} roughness={0.5} />
-			</mesh>
-			<mesh position={[6.4, 3.2, 0]}>
-				<boxGeometry args={[0.25, 6.4, 0.25]} />
-				<meshStandardMaterial color="#616161" metalness={0.6} roughness={0.5} />
-			</mesh>
-			<mesh position={[0, 6.3, 0]}>
-				<boxGeometry args={[13.2, 0.35, 0.35]} />
-				<meshStandardMaterial color="#616161" metalness={0.6} roughness={0.5} />
-			</mesh>
-			<mesh position={[0, 5.3, 0]}>
-				<boxGeometry args={[3.4, 1.7, 0.12]} />
-				<meshStandardMaterial color="#1B7A2E" roughness={0.5} />
-			</mesh>
-			<mesh position={[0, 5.3, 0.07]}>
-				<planeGeometry args={[3.2, 1.55]} />
-				<meshBasicMaterial map={tex} />
-			</mesh>
-		</group>
-	);
-};
-
-/** Big yellow "?" bubble floating above the confused driver's car. */
-export const QuestionBubble: React.FC<{position: [number, number, number]; frame: number}> = ({
-	position,
-	frame,
-}) => {
-	const tex = useMemoTexture(() =>
-		textTexture({
-			lines: [{text: '?', size: 220, color: '#111111', y: 190}],
-			w: 256,
-			h: 256,
-		}),
-	);
-	const bobY = Math.sin(frame * 0.12) * 0.12;
-	return (
-		<group position={[position[0], position[1] + bobY, position[2]]}>
-			<mesh>
-				<circleGeometry args={[0.85, 32]} />
-				<meshBasicMaterial color="#FFD400" />
-			</mesh>
-			<mesh position={[0, 0, 0.01]}>
-				<circleGeometry args={[0.78, 32]} />
-				<meshBasicMaterial color="#FFD400" />
-			</mesh>
-			<mesh position={[0, 0.05, 0.02]}>
-				<planeGeometry args={[0.9, 0.9]} />
-				<meshBasicMaterial map={tex} transparent />
-			</mesh>
-			{/* little tail pointing down at the car */}
-			<mesh position={[0, -0.95, 0]} rotation={[0, 0, Math.PI]}>
-				<coneGeometry args={[0.18, 0.4, 3]} />
-				<meshBasicMaterial color="#FFD400" />
-			</mesh>
-		</group>
-	);
-};
-
-/** White picket fence along the suburban lawn. */
-export const PicketFence: React.FC<{position: [number, number, number]; length?: number}> = ({
-	position,
-	length = 10,
-}) => {
-	const pickets = React.useMemo(() => {
-		const arr: number[] = [];
-		for (let x = -length / 2; x <= length / 2; x += 0.55) arr.push(x);
-		return arr;
-	}, [length]);
-	return (
-		<group position={position}>
-			{pickets.map((x) => (
-				<mesh key={x} position={[x, 0.55, 0]}>
-					<boxGeometry args={[0.14, 1.1, 0.06]} />
-					<meshStandardMaterial color="#FAFAFA" roughness={0.8} />
-				</mesh>
-			))}
-			<mesh position={[0, 0.85, 0]}>
-				<boxGeometry args={[length, 0.08, 0.05]} />
-				<meshStandardMaterial color="#FAFAFA" roughness={0.8} />
-			</mesh>
-			<mesh position={[0, 0.35, 0]}>
-				<boxGeometry args={[length, 0.08, 0.05]} />
-				<meshStandardMaterial color="#FAFAFA" roughness={0.8} />
-			</mesh>
-		</group>
-	);
-};
-
-/** Living room set: wooden floor, grey sofa, wall TV showing a football field. */
-export const LivingRoom: React.FC = () => {
-	const tv = useMemoTexture(tvTexture);
-	return (
-		<group position={[0, 0, 62]}>
-			{/* wooden floor */}
-			<mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-				<planeGeometry args={[16, 12]} />
-				<meshStandardMaterial color="#8D6E63" roughness={0.8} />
-			</mesh>
-			{/* floor plank lines */}
-			{[-4, -2, 0, 2, 4].map((x) => (
-				<mesh key={x} position={[x, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-					<planeGeometry args={[0.06, 12]} />
-					<meshBasicMaterial color="#6D4C41" />
-				</mesh>
-			))}
-			{/* back wall */}
-			<mesh position={[0, 2.2, -5]}>
-				<planeGeometry args={[16, 4.4]} />
-				<meshStandardMaterial color="#EFEBE9" roughness={0.9} />
-			</mesh>
-			{/* side walls */}
-			<mesh position={[-8, 2.2, 0]} rotation={[0, Math.PI / 2, 0]}>
-				<planeGeometry args={[12, 4.4]} />
-				<meshStandardMaterial color="#E8E0D8" roughness={0.9} />
-			</mesh>
-			<mesh position={[8, 2.2, 0]} rotation={[0, -Math.PI / 2, 0]}>
-				<planeGeometry args={[12, 4.4]} />
-				<meshStandardMaterial color="#E8E0D8" roughness={0.9} />
-			</mesh>
-			{/* grey sofa: base + back + arms + cushions */}
-			<group position={[0, 0, -3.5]}>
-				<mesh position={[0, 0.45, 0]}>
-					<boxGeometry args={[3.6, 0.6, 1.5]} />
-					<meshStandardMaterial color="#78909C" roughness={0.9} />
-				</mesh>
-				<mesh position={[0, 0.875, -0.65]}>
-					<boxGeometry args={[3.6, 0.55, 0.4]} />
-					<meshStandardMaterial color="#607D8B" roughness={0.9} />
-				</mesh>
-				<mesh position={[-1.7, 0.85, 0]}>
-					<boxGeometry args={[0.3, 0.8, 1.5]} />
-					<meshStandardMaterial color="#607D8B" roughness={0.9} />
-				</mesh>
-				<mesh position={[1.7, 0.85, 0]}>
-					<boxGeometry args={[0.3, 0.8, 1.5]} />
-					<meshStandardMaterial color="#607D8B" roughness={0.9} />
-				</mesh>
-				{[-1.1, 0, 1.1].map((x) => (
-					<mesh key={x} position={[x, 0.85, 0.1]}>
-						<boxGeometry args={[1.0, 0.25, 1.2]} />
-						<meshStandardMaterial color="#90A4AE" roughness={0.9} />
-					</mesh>
-				))}
-			</group>
-			{/* wall TV showing a football field */}
-			<mesh position={[0, 2.4, -4.9]}>
-				<boxGeometry args={[3.6, 2.0, 0.12]} />
-				<meshStandardMaterial color="#111111" roughness={0.4} />
-			</mesh>
-			<mesh position={[0, 2.4, -4.82]}>
-				<planeGeometry args={[3.4, 1.8]} />
-				<meshBasicMaterial map={tv} />
-			</mesh>
-			{/* rug */}
-			<mesh position={[0, 0.04, 1.2]} rotation={[-Math.PI / 2, 0, 0]}>
-				<planeGeometry args={[5, 3]} />
-				<meshStandardMaterial color="#B71C1C" roughness={0.95} />
-			</mesh>
-		</group>
-	);
+  return group;
 };

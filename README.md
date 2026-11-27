@@ -1,37 +1,38 @@
-# Speed Camera Render Test
+# The Speed Camera That Paid Good Drivers
 
-A 15-second Remotion + three.js test animation (1080×1920 vertical, 30fps, no audio): the opening of the Speed Camera story — a red car speeding down a road, the driver, the speedometer showing 62, the brake, "everyone does it" (shots 1–5, 0:00–~15 s).
+A 57.712 second vertical Remotion Short (1080x1920, 30 fps, 1732 frames), composed in
+three.js with flat 2D characters and a rich 3D world.
 
-## Style
+## Local
 
-Rich saturated 3D world + flat 2D rigged characters (big round white heads, dot eyes, thick black outlines, visible neck). Characters move — the driver steers and reacts. A visible camera move in every shot. Detail is built, not painted: individual stones along the road, individual grass blades, trees, telegraph poles, road markings, a detailed glossy car.
+```bash
+npm ci
+npm start          # Remotion Studio (preview)
+```
+
+WebGL rendering is intentionally done on GitHub Actions, not on a phone.
 
 ## Render
 
-Rendered on GitHub Actions (GitHub runners have no GPU, so the render uses `--gl=swangle` — SwiftShader software WebGL — see `remotion.config.ts`).
+Push to `src/**`, `package.json`, `package-lock.json`, `remotion.config.ts` or the
+workflow file to trigger `.github/workflows/render-video.yml`. It renders
+`SpeedCameraFull` with `--gl=swangle` to `out/speed-camera-full.mp4`, uploads the
+artifact and commits the result back to the repository.
 
-Pushing to `main` triggers `.github/workflows/render-video.yml`, which runs:
+Manual render:
 
-```
-npx remotion render SpeedCameraTest out/test15.mp4 --gl=swangle --codec=h264
-```
-
-and commits `out/test15.mp4` + `out/render-status.json` back to the repo.
-
-## Local preview
-
-```
-npm install
-npx remotion still SpeedCameraTest out/still.png --frame=120 --gl=swangle
-npm run render   # full 15 s mp4 (software GL, slow)
+```bash
+npx remotion render SpeedCameraFull out/speed-camera-full.mp4 --gl=swangle --codec=h264 --overwrite
 ```
 
-## Files
+## Audio
 
-- `src/Root.tsx` — composition `SpeedCameraTest` (1080×1920, 30fps, 450 frames)
-- `src/SpeedCameraTest.tsx` — scene composition, HUD overlay, camera rig
-- `src/scene/shots.ts` — per-shot camera moves, car + driver state (shots 1–8)
-- `src/scene/world.tsx` — road, grass, stones, trees, poles, houses, skyline, sign
-- `src/scene/car.tsx` — detailed sedan (glossy paint, chrome, headlights, tread tyres)
-- `src/scene/driver.tsx` — rigged flat 2D driver (separate parts, pivots at joints)
-- `src/scene/textures.ts` — canvas textures (sky gradient, grass, asphalt, sign, road paint)
+`public/speed-camera-voice-1.2x.mp3` is the original 57.712 s voice file, copied
+unmodified. It starts at frame 0 and plays at full volume. Shot boundaries are locked
+to the measured voice beats in `src/scene/shots-full.ts`.
+
+## Check
+
+```bash
+npx tsc --noEmit
+```

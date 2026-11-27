@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "remotion studio",
-    "render": "remotion render SpeedCameraTest out/test15.mp4 --gl=swangle --codec=h264 --overwrite"
+    "render": "remotion render SpeedCameraFull out/speed-camera-full.mp4 --gl=swangle --codec=h264 --overwrite"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",

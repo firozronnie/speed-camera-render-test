@@ -14,31 +14,34 @@ export const CAR_HEX: Record<CarColor, string> = {
 const paint = (color: string) =>
   new THREE.MeshPhysicalMaterial({
     color,
-    metalness: 0.42,
-    roughness: 0.17,
+    metalness: 0.52,
+    roughness: 0.14,
     clearcoat: 1,
-    clearcoatRoughness: 0.07,
-    reflectivity: 0.85,
+    clearcoatRoughness: 0.05,
+    reflectivity: 0.95,
+    envMapIntensity: 1.55,
   });
 
 const gold = () =>
   new THREE.MeshStandardMaterial({
     color: '#D4A017',
-    metalness: 0.92,
-    roughness: 0.22,
+    metalness: 0.94,
+    roughness: 0.16,
     emissive: '#4A3405',
-    emissiveIntensity: 0.25,
+    emissiveIntensity: 0.22,
+    envMapIntensity: 1.7,
   });
 
 const glass = () =>
   new THREE.MeshPhysicalMaterial({
     color: '#BFE3F2',
-    metalness: 0.12,
-    roughness: 0.05,
+    metalness: 0.18,
+    roughness: 0.04,
     transparent: true,
-    opacity: 0.29,
+    opacity: 0.32,
     side: THREE.DoubleSide,
     depthWrite: false,
+    envMapIntensity: 1.9,
   });
 
 const mesh = (geo: THREE.BufferGeometry, mat: THREE.Material) => new THREE.Mesh(geo, mat);
@@ -76,11 +79,30 @@ const makeWheel = (spinning: number): THREE.Group => {
   ring.rotation.y = Math.PI / 2;
   wheel.add(ring);
 
-  for (let i = 0; i < 6; i++) {
-    const spoke = mesh(boxGeo(0.32, 0.05, 0.07), gold());
-    spoke.rotation.x = (i * Math.PI) / 3;
+  const brakeDisc = mesh(cylGeo(0.22, 0.22, 0.06, 20), new THREE.MeshStandardMaterial({
+    color: '#6B7280',
+    metalness: 0.9,
+    roughness: 0.3,
+    envMapIntensity: 1.4,
+  }));
+  brakeDisc.rotation.z = Math.PI / 2;
+  wheel.add(brakeDisc);
+
+  const spokeMat = new THREE.MeshStandardMaterial({
+    color: '#F6D774',
+    metalness: 0.95,
+    roughness: 0.15,
+    envMapIntensity: 1.8,
+  });
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    const spoke = mesh(boxGeo(0.07, 0.24, 0.05), spokeMat);
+    spoke.position.set(0, Math.cos(a) * 0.14, Math.sin(a) * 0.14);
+    spoke.rotation.x = a;
     wheel.add(spoke);
   }
+  const hub = mesh(sphereGeo(0.07, 12), spokeMat);
+  wheel.add(hub);
 
   wheel.rotation.x = spinning;
   return wheel;
@@ -200,8 +222,9 @@ export const makeCar = (state: CarState): THREE.Group => {
       new THREE.MeshStandardMaterial({
         color: '#FFF3C4',
         emissive: '#FFE9A8',
-        emissiveIntensity: 1.4,
-        roughness: 0.2,
+        emissiveIntensity: 2.5,
+        roughness: 0.18,
+        envMapIntensity: 1.5,
       }),
     );
     headLamp.position.set(side * 0.72, 0.9, 2.13);
@@ -233,6 +256,27 @@ export const makeCar = (state: CarState): THREE.Group => {
       car.add(wheel);
     }
   }
+
+  if (state.color === 'red' || state.sports || state.brake) {
+    const headLight = new THREE.PointLight('#FFE9B8', state.sports ? 1.8 : 1.1, 11, 2);
+    headLight.position.set(0, 0.95, 2.3);
+    car.add(headLight);
+    const tailLight = new THREE.PointLight('#EF2B2B', state.brake ? 1.9 : 0.5, 5, 2);
+    tailLight.position.set(0, 0.92, -2.25);
+    car.add(tailLight);
+  }
+
+  car.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const material = child.material as THREE.Material;
+    if (material.transparent || material.opacity < 1) {
+      child.castShadow = false;
+      child.receiveShadow = false;
+      return;
+    }
+    child.castShadow = true;
+    child.receiveShadow = true;
+  });
 
   return car;
 };

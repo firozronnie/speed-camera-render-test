@@ -406,8 +406,8 @@ export const getFullShotState = (frame: number): FullShotState => {
       break;
     }
     case 12: {
-      // 13. Inventor close-up, tablet shows the new rule as code.
-      camera = mkCam([0, 2.4, 7], [0, 1.5, 0], 32, progress);
+      // 13. Inventor close-up, tablet shows the new rule as code BESIDE his face.
+      camera = mkCam([0, 2.4, 9], [0, 1.5, 0], 34, progress);
       drivers = [
         mkDriver({
           id: 'inventor',
@@ -421,9 +421,10 @@ export const getFullShotState = (frame: number): FullShotState => {
       ];
       props = [
         mkProp('tablet', {
-          x: 0.55,
-          y: 1.1,
+          x: 1.05,
+          y: 1.0,
           z: 0.5,
+          scale: 0.75,
           text: 'if (speed < limit) flash()',
         }),
       ];
@@ -596,9 +597,9 @@ export const getFullShotState = (frame: number): FullShotState => {
       camera = mkCam([0, 2.6, 11], [0, 1.4, 0], 38, progress);
       props = [mkProp('livingRoom', {x: 0, y: 0, z: 0})];
       drivers = [
-        mkDriver({id: 'family-1', x: -1.05, y: 1.05, z: 0.4, pose: 'stand', emotion: 'happy', shirt: '#D94F4F', scale: 0.72}),
-        mkDriver({id: 'family-2', x: 0, y: 1.05, z: 0.4, pose: 'stand', emotion: 'neutral', shirt: '#2C7BC7', scale: 0.72}),
-        mkDriver({id: 'family-3', x: 1.05, y: 1.05, z: 0.4, pose: 'stand', emotion: 'happy', shirt: '#2E9E44', scale: 0.72}),
+        mkDriver({id: 'family-1', x: -1.05, y: 0.45, z: 1.75, pose: 'stand', emotion: 'happy', shirt: '#D94F4F', scale: 0.85}),
+        mkDriver({id: 'family-2', x: 0, y: 0.45, z: 1.75, pose: 'stand', emotion: 'neutral', shirt: '#2C7BC7', scale: 0.85}),
+        mkDriver({id: 'family-3', x: 1.05, y: 0.45, z: 1.75, pose: 'stand', emotion: 'happy', shirt: '#2E9E44', scale: 0.85}),
       ];
       break;
     }

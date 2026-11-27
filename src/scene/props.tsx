@@ -33,18 +33,18 @@ const addCash = (
   for (let i = 0; i < count; i++) {
     const a = i * 2.39996;
     if (mode === 'burst') {
-      const r = 0.35 + (i % 7) * 0.2;
+      const r = 0.25 + (i % 6) * 0.13;
       dummy.position.set(
-        Math.cos(a) * r * 0.85,
-        1.05 + Math.sin(i * 1.7) * 1.15,
-        0.35 + Math.cos(i * 0.9) * 0.45,
+        Math.cos(a) * r * 0.8,
+        1.0 + Math.sin(i * 1.7) * 0.95,
+        0.35 + Math.cos(i * 0.9) * 0.35,
       );
       dummy.rotation.set(0, Math.sin(a) * 0.5, a * 0.31);
     } else {
       const column = i % 9;
       const row = Math.floor(i / 9);
       dummy.position.set(
-        -1.45 + column * 0.36 + Math.sin(i * 2.1) * 0.08,
+        -1.05 + column * 0.26 + Math.sin(i * 2.1) * 0.05,
         0.55 + row * 0.72 + Math.cos(i) * 0.18,
         -0.6 + (i % 4) * 0.4,
       );
@@ -211,15 +211,15 @@ export const makeProp = (state: PropState): THREE.Group => {
       rugBorder.position.set(0, 0.04, 0.2);
       group.add(rugBorder);
 
-      const sofa = new THREE.Mesh(boxGeo(3.3, 0.5, 0.95), standard('#2F5D8A', 0.1, 0.85));
-      sofa.position.set(0, 0.5, 0.85);
+      const sofa = new THREE.Mesh(boxGeo(3.3, 0.34, 0.95), standard('#3E74A6', 0.1, 0.85));
+      sofa.position.set(0, 0.34, 0.85);
       group.add(sofa);
-      const back = new THREE.Mesh(boxGeo(3.3, 0.78, 0.24), standard('#244A70', 0.1, 0.85));
-      back.position.set(0, 0.98, 1.26);
+      const back = new THREE.Mesh(boxGeo(3.3, 0.3, 0.2), standard('#2F6696', 0.1, 0.85));
+      back.position.set(0, 0.6, 1.12);
       group.add(back);
       for (const side of [-1, 1]) {
-        const arm = new THREE.Mesh(boxGeo(0.24, 0.66, 0.95), standard('#244A70', 0.1, 0.85));
-        arm.position.set(side * 1.55, 0.83, 0.85);
+        const arm = new THREE.Mesh(boxGeo(0.24, 0.38, 0.95), standard('#2F6696', 0.1, 0.85));
+        arm.position.set(side * 1.55, 0.56, 0.85);
         group.add(arm);
       }
 
@@ -284,12 +284,35 @@ export const makeProp = (state: PropState): THREE.Group => {
       break;
     }
     case 'jackpot': {
-      const bodyMesh = new THREE.Mesh(boxGeo(1.7, 2.3, 0.95), standard('#7C1B2E', 0.35, 0.3));
+      const bodyMesh = new THREE.Mesh(
+        boxGeo(1.7, 2.3, 0.95),
+        new THREE.MeshPhysicalMaterial({
+          color: '#C8102E',
+          metalness: 0.45,
+          roughness: 0.16,
+          clearcoat: 1,
+          clearcoatRoughness: 0.06,
+          envMapIntensity: 1.7,
+        }),
+      );
       bodyMesh.position.y = 1.15;
       group.add(bodyMesh);
-      const trim = new THREE.Mesh(boxGeo(1.78, 2.38, 0.12), standard('#D4A017', 0.92, 0.2));
+      const goldTrim = new THREE.MeshStandardMaterial({
+        color: '#D4A017',
+        metalness: 0.96,
+        roughness: 0.14,
+        emissive: '#6B4A05',
+        emissiveIntensity: 0.42,
+        envMapIntensity: 1.9,
+      });
+      const trim = new THREE.Mesh(boxGeo(1.78, 2.38, 0.12), goldTrim);
       trim.position.z = 0.48;
       group.add(trim);
+      for (let i = 0; i < 14; i++) {
+        const rivet = new THREE.Mesh(sphereGeo(0.035, 8), goldTrim);
+        rivet.position.set(i % 2 ? 0.83 : -0.83, 0.2 + Math.floor(i / 2) * 0.32, 0.55);
+        group.add(rivet);
+      }
       const marquee = new THREE.Mesh(
         planeGeo(1.56, 0.42),
         flatMaterial(signTexture('JACKPOT', '#17233C', '#FFD400')),
@@ -313,12 +336,27 @@ export const makeProp = (state: PropState): THREE.Group => {
       const leverRod = new THREE.Mesh(cylGeo(0.04, 0.04, 0.6, 10), standard('#C8CDD2', 0.9, 0.2));
       leverRod.position.set(0.98, 1.15, 0.35);
       group.add(leverRod);
-      const glow = new THREE.PointLight('#FFD36B', 3.2, 7);
-      glow.position.set(0, 2.2, 1.2);
+      const glow = new THREE.PointLight('#FFD98A', 5.2, 10, 2);
+      glow.position.set(0, 2.4, 1.6);
       group.add(glow);
+      const rimGlow = new THREE.PointLight('#6E9BFF', 2.6, 9, 2);
+      rimGlow.position.set(-1.4, 1.4, -0.8);
+      group.add(rimGlow);
       break;
     }
   }
+
+  group.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const material = child.material as THREE.Material;
+    if (material.transparent || material.opacity < 1) {
+      child.castShadow = false;
+      child.receiveShadow = false;
+      return;
+    }
+    child.castShadow = true;
+    child.receiveShadow = true;
+  });
 
   return group;
 };

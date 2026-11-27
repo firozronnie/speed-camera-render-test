@@ -568,6 +568,199 @@ export const bodyTexture = (shirt: string, jacket?: string): THREE.CanvasTexture
     ctx.stroke();
   });
 
+/** Deterministic grain so every surface has speckle, wear and variation. */
+export const asphaltTexture = (): THREE.CanvasTexture => {
+  const texture = makeTexture('asphalt-noise', 512, 512, (ctx, w, h) => {
+    ctx.fillStyle = '#3A414A';
+    ctx.fillRect(0, 0, w, h);
+    const grad = ctx.createLinearGradient(0, 0, w, h);
+    grad.addColorStop(0, 'rgba(255,255,255,0.06)');
+    grad.addColorStop(0.5, 'rgba(0,0,0,0.08)');
+    grad.addColorStop(1, 'rgba(255,255,255,0.04)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 11000; i++) {
+      const x = (Math.sin(i * 91.7) * 43758.5453) % 1;
+      const y = (Math.sin(i * 47.3) * 24634.6345) % 1;
+      const px = (x < 0 ? x + 1 : x) * w;
+      const py = (y < 0 ? y + 1 : y) * h;
+      const shade = Math.floor(60 + ((i * 37) % 90));
+      ctx.fillStyle = `rgba(${shade},${shade + 4},${shade + 8},${0.18 + (i % 7) * 0.045})`;
+      ctx.fillRect(px, py, 1 + (i % 3), 1 + (i % 2));
+    }
+    ctx.strokeStyle = 'rgba(18,22,28,0.35)';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 7; i++) {
+      ctx.beginPath();
+      ctx.moveTo((i * 83) % w, 0);
+      ctx.lineTo(120 + ((i * 61) % 300), h);
+      ctx.stroke();
+    }
+  });
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(3, 46);
+  return texture;
+};
+
+export const grassVariationTexture = (): THREE.CanvasTexture => {
+  const texture = makeTexture('grass-variation', 256, 256, (ctx, w, h) => {
+    ctx.fillStyle = '#4C8B3C';
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 6000; i++) {
+      const x = (Math.sin(i * 31.9) * 19341.25) % 1;
+      const y = (Math.sin(i * 73.1) * 28461.77) % 1;
+      ctx.fillStyle = i % 3 === 0 ? 'rgba(24,74,30,0.30)' : 'rgba(154,206,88,0.24)';
+      ctx.fillRect(
+        (x < 0 ? x + 1 : x) * w,
+        (y < 0 ? y + 1 : y) * h,
+        2 + (i % 4),
+        2 + (i % 3),
+      );
+    }
+  });
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(34, 34);
+  return texture;
+};
+
+export const laneMarkTexture = (): THREE.CanvasTexture => {
+  const texture = makeTexture('lane-wear', 128, 256, (ctx, w, h) => {
+    ctx.fillStyle = '#F1F3F2';
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 900; i++) {
+      const x = (Math.sin(i * 19.7) * 13579.11) % 1;
+      const y = (Math.sin(i * 57.3) * 24680.13) % 1;
+      ctx.fillStyle = i % 2 ? 'rgba(70,76,82,0.55)' : 'rgba(120,126,130,0.35)';
+      ctx.fillRect((x < 0 ? x + 1 : x) * w, (y < 0 ? y + 1 : y) * h, 2, 3);
+    }
+  });
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+};
+
+export const facadeTexture = (night: boolean): THREE.CanvasTexture =>
+  makeTexture(`facade:${night ? 'night' : 'day'}`, 512, 512, (ctx, w, h) => {
+    ctx.fillStyle = night ? '#1B2C46' : '#67737F';
+    ctx.fillRect(0, 0, w, h);
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 6; col++) {
+        const lit = (row * 7 + col * 3) % 5 < 2;
+        const x = 20 + col * 80;
+        const y = 20 + row * 60;
+        ctx.fillStyle = lit
+          ? night
+            ? '#FFD98A'
+            : '#D8E9F2'
+          : night
+            ? '#0C182C'
+            : '#33404C';
+        ctx.fillRect(x, y, 52, 38);
+        ctx.strokeStyle = 'rgba(8,14,24,0.55)';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(x, y, 52, 38);
+        ctx.fillStyle = 'rgba(255,255,255,0.14)';
+        ctx.fillRect(x + 3, y + 3, 46, 5);
+      }
+    }
+  });
+
+export const cloudTexture = (): THREE.CanvasTexture =>
+  makeTexture('soft-cloud', 512, 256, (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    for (let i = 0; i < 12; i++) {
+      const cx = 60 + i * 36;
+      const cy = 128 + Math.sin(i * 1.7) * 26;
+      const r = 55 + (i % 4) * 18;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grad.addColorStop(0, 'rgba(255,255,255,0.55)');
+      grad.addColorStop(0.55, 'rgba(255,255,255,0.28)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+export const skyGradientTexture = (night: boolean): THREE.CanvasTexture =>
+  makeTexture(`sky-gradient:${night ? 'night' : 'day'}`, 64, 512, (ctx, w, h) => {
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    if (night) {
+      grad.addColorStop(0, '#050C22');
+      grad.addColorStop(0.42, '#102650');
+      grad.addColorStop(0.72, '#274270');
+      grad.addColorStop(0.88, '#3A587E');
+      grad.addColorStop(1, '#1B2B44');
+    } else {
+      grad.addColorStop(0, '#1F5FB8');
+      grad.addColorStop(0.4, '#4E93D8');
+      grad.addColorStop(0.72, '#9CCBEA');
+      grad.addColorStop(0.88, '#F5D6A8');
+      grad.addColorStop(1, '#D8C39C');
+    }
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  });
+
+export const glowTexture = (): THREE.CanvasTexture =>
+  makeTexture('soft-glow', 256, 256, (ctx, w, h) => {
+    const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.18, 'rgba(255,255,255,0.78)');
+    grad.addColorStop(0.5, 'rgba(255,255,255,0.22)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  });
+
+const environmentCache = new Map<string, THREE.CubeTexture>();
+
+/** One gradient cube map, generated once, so chrome and clearcoat reflect something. */
+export const skyEnvironment = (night: boolean): THREE.CubeTexture => {
+  const key = night ? 'night' : 'day';
+  const cached = environmentCache.get(key);
+  if (cached) return cached;
+
+  const faces = ['px', 'nx', 'py', 'ny', 'pz', 'nz'].map((face) =>
+    makeTexture(`env:${key}:${face}`, 256, 256, (ctx, w, h) => {
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      if (face === 'py') {
+        grad.addColorStop(0, night ? '#0B1B3A' : '#2C6BC4');
+        grad.addColorStop(1, night ? '#25406C' : '#8FC4EA');
+      } else if (face === 'ny') {
+        grad.addColorStop(0, night ? '#1B2B44' : '#D8C39C');
+        grad.addColorStop(1, night ? '#0B1426' : '#5B523C');
+      } else {
+        grad.addColorStop(0, night ? '#0A1732' : '#3C82CE');
+        grad.addColorStop(0.62, night ? '#1E3B68' : '#A9D4EF');
+        grad.addColorStop(0.82, night ? '#3A587E' : '#F5D6A8');
+        grad.addColorStop(1, night ? '#1B2B44' : '#7B6E52');
+      }
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+      if (face === 'py' || face === 'pz') {
+        const sx = face === 'py' ? w * 0.62 : w * 0.74;
+        const sy = face === 'py' ? h * 0.4 : h * 0.3;
+        const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, 74);
+        glow.addColorStop(0, night ? '#E8F0FF' : '#FFF6D6');
+        glow.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, w, h);
+      }
+    }),
+  );
+
+  const cube = new THREE.CubeTexture(faces.map((texture) => texture.image as HTMLCanvasElement));
+  cube.colorSpace = THREE.SRGBColorSpace;
+  cube.mapping = THREE.CubeReflectionMapping;
+  cube.needsUpdate = true;
+  environmentCache.set(key, cube);
+  return cube;
+};
+
 export const limbTexture = (part: 'arm' | 'leg', color: string): THREE.CanvasTexture =>
   makeTexture(`limb:${part}:${color}`, 128, 512, (ctx, w, h) => {
     ctx.clearRect(0, 0, w, h);

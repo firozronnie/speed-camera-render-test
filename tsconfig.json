@@ -1,18 +1,18 @@
 {
   "compilerOptions": {
     "target": "es2020",
+    "lib": ["dom", "dom.iterable", "es2020"],
     "module": "esnext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
-    "esModuleInterop": true,
     "skipLibCheck": true,
+    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "lib": ["es2020", "dom"],
+    "isolatedModules": true,
     "types": ["react", "three"]
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "out"]
+  "include": ["src", "remotion.config.ts"]
 }

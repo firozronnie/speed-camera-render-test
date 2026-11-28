@@ -1,362 +1,471 @@
+import React from 'react';
 import * as THREE from 'three';
-import type {PropState} from './shots-full';
+import type {BillsSt, V3} from './shots-full';
 import {
-  banknoteTexture,
-  boxGeo,
+  billTexture,
   checkTexture,
   codeTexture,
-  cylGeo,
-  flatMaterial,
-  planeGeo,
-  questionTexture,
-  roadTextTexture,
-  signTexture,
-  sphereGeo,
-  torusGeo,
-  tvTexture,
+  fineSignTexture,
+  footballTexture,
+  jackpotTexture,
+  qMarkTexture,
+  rng,
+  slowTexture,
+  textPanel,
+  woodTexture,
 } from './textures';
 
-const standard = (color: string, metalness = 0.15, roughness = 0.55) =>
-  new THREE.MeshStandardMaterial({color, metalness, roughness});
+const GOLD = '#D4A017';
 
-const addCash = (
-  group: THREE.Group,
-  count: number,
-  mode: 'burst' | 'rain',
-) => {
-  const dummy = new THREE.Object3D();
-  const notes = new THREE.InstancedMesh(
-    planeGeo(0.42, 0.21),
-    flatMaterial(banknoteTexture()),
-    count,
+// ---------------------------------------------------------------- flat held items (children of a Driver)
+
+export const CheckProp: React.FC<{p: V3; s: number}> = ({p, s}) => (
+  <group position={p} scale={[s, s, 1]}>
+    <mesh position={[0, 0, -0.01]}>
+      <planeGeometry args={[2.32, 1.18]} />
+      <meshBasicMaterial color="#14532D" toneMapped={false} side={THREE.DoubleSide} />
+    </mesh>
+    <mesh>
+      <planeGeometry args={[2.2, 1.1]} />
+      <meshBasicMaterial map={checkTexture()} toneMapped={false} side={THREE.DoubleSide} />
+    </mesh>
+  </group>
+);
+
+export const TabletProp: React.FC<{p: V3; s: number}> = ({p, s}) => (
+  <group position={p} scale={[s, s, 1]}>
+    <mesh position={[0, 0, -0.01]}>
+      <planeGeometry args={[1.7, 1.2]} />
+      <meshBasicMaterial color="#1F2937" toneMapped={false} side={THREE.DoubleSide} />
+    </mesh>
+    <mesh>
+      <planeGeometry args={[1.58, 1.08]} />
+      <meshBasicMaterial map={codeTexture()} toneMapped={false} side={THREE.DoubleSide} />
+    </mesh>
+  </group>
+);
+
+// ---------------------------------------------------------------- ladder (leans on the camera pole)
+
+export const Ladder: React.FC = () => {
+  const L = 7.25;
+  const rungs = Array.from({length: 14}, (_, i) => -L / 2 + 0.35 + i * ((L - 0.7) / 13));
+  return (
+    <group position={[1.4, 3.2, -3.5]} rotation={[-0.488, 0, 0]}>
+      {[-0.42, 0.42].map((x) => (
+        <mesh key={x} position={[x, 0, 0]} castShadow>
+          <boxGeometry args={[0.08, L, 0.1]} />
+          <meshStandardMaterial color="#E0A431" roughness={0.5} metalness={0.3} />
+        </mesh>
+      ))}
+      {rungs.map((y, i) => (
+        <mesh key={i} position={[0, y, 0]} castShadow>
+          <boxGeometry args={[0.84, 0.05, 0.05]} />
+          <meshStandardMaterial color="#C9CDD2" metalness={0.8} roughness={0.3} />
+        </mesh>
+      ))}
+    </group>
   );
-  for (let i = 0; i < count; i++) {
-    const a = i * 2.39996;
-    if (mode === 'burst') {
-      const r = 0.25 + (i % 6) * 0.13;
-      dummy.position.set(
-        Math.cos(a) * r * 0.8,
-        1.0 + Math.sin(i * 1.7) * 0.95,
-        0.35 + Math.cos(i * 0.9) * 0.35,
-      );
-      dummy.rotation.set(0, Math.sin(a) * 0.5, a * 0.31);
-    } else {
-      const column = i % 9;
-      const row = Math.floor(i / 9);
-      dummy.position.set(
-        -1.05 + column * 0.26 + Math.sin(i * 2.1) * 0.05,
-        0.55 + row * 0.72 + Math.cos(i) * 0.18,
-        -0.6 + (i % 4) * 0.4,
-      );
-      dummy.rotation.set(0, Math.sin(a) * 0.4, a * 0.27);
-    }
-    dummy.scale.setScalar(1);
-    dummy.updateMatrix();
-    notes.setMatrixAt(i, dummy.matrix);
-  }
-  notes.instanceMatrix.needsUpdate = true;
-  group.add(notes);
 };
 
-export const makeProp = (state: PropState): THREE.Group => {
-  const group = new THREE.Group();
-  group.position.set(state.x, state.y, state.z);
-  group.rotation.y = state.rotationY;
-  group.scale.setScalar(state.scale);
+// ---------------------------------------------------------------- mailbox + fence
 
-  switch (state.kind) {
-    case 'fineSign': {
-      const post = new THREE.Mesh(cylGeo(0.07, 0.09, 2.05, 12), standard('#8A939E', 0.8, 0.35));
-      post.position.y = 1.02;
-      group.add(post);
-      const backing = new THREE.Mesh(boxGeo(2.0, 1.06, 0.12), standard('#1B2940', 0.5, 0.4));
-      backing.position.y = 2.12;
-      group.add(backing);
-      const board = new THREE.Mesh(
-        planeGeo(1.88, 0.94),
-        flatMaterial(signTexture(state.text ?? '$150')),
-      );
-      board.position.set(0, 2.12, 0.08);
-      group.add(board);
-      break;
-    }
-    case 'roadText': {
-      const paint = new THREE.Mesh(
-        planeGeo(5.2, 2.6),
-        flatMaterial(roadTextTexture(state.text ?? 'SLOW!')),
-      );
-      paint.rotation.x = -Math.PI / 2;
-      paint.position.y = 0.01;
-      group.add(paint);
-      break;
-    }
-    case 'ladder': {
-      for (const side of [-1, 1]) {
-        const rail = new THREE.Mesh(boxGeo(0.09, 3.7, 0.09), standard('#C0C6CC', 0.75, 0.3));
-        rail.position.set(side * 0.42, 1.85, 0);
-        group.add(rail);
-        const foot = new THREE.Mesh(cylGeo(0.08, 0.08, 0.2, 10), standard('#333A44', 0.4, 0.7));
-        foot.rotation.z = Math.PI / 2;
-        foot.position.set(side * 0.42, 0.08, 0);
-        group.add(foot);
-      }
-      for (let i = 0; i < 11; i++) {
-        const rung = new THREE.Mesh(boxGeo(0.94, 0.06, 0.08), standard('#D4A017', 0.85, 0.28));
-        rung.position.set(0, 0.3 + i * 0.33, 0);
-        group.add(rung);
-      }
-      break;
-    }
-    case 'tablet': {
-      const shell = new THREE.Mesh(boxGeo(1.1, 0.72, 0.08), standard('#1B2434', 0.7, 0.28));
-      group.add(shell);
-      const screen = new THREE.Mesh(
-        planeGeo(1.02, 0.64),
-        flatMaterial(codeTexture(state.text ?? 'if (speed < limit) flash()')),
-      );
-      screen.position.z = 0.05;
-      group.add(screen);
-      const glow = new THREE.PointLight('#7DE2A9', 2.2, 4);
-      glow.position.z = 0.5;
-      group.add(glow);
-      break;
-    }
-    case 'mailbox': {
-      const post = new THREE.Mesh(cylGeo(0.07, 0.09, 1.15, 12), standard('#6B7280', 0.55, 0.6));
-      post.position.y = 0.57;
-      group.add(post);
-      const box = new THREE.Mesh(boxGeo(0.62, 0.42, 0.46), standard('#1565C0', 0.35, 0.4));
-      box.position.y = 1.32;
-      group.add(box);
-      const lid = new THREE.Mesh(boxGeo(0.08, 0.42, 0.46), standard('#1565C0', 0.35, 0.4));
-      lid.position.set(0.31, 1.53, 0);
-      group.add(lid);
-      const flag = new THREE.Mesh(boxGeo(0.06, 0.34, 0.06), standard('#EF2B2B', 0.3, 0.5));
-      flag.position.set(0.36, 1.58, 0);
-      group.add(flag);
-      const slot = new THREE.Mesh(boxGeo(0.4, 0.035, 0.02), standard('#0B1B2E', 0.2, 0.8));
-      slot.position.set(0, 1.32, 0.24);
-      group.add(slot);
-      break;
-    }
-    case 'check': {
-      const paper = new THREE.Mesh(planeGeo(1.9, 0.95), flatMaterial(checkTexture()));
-      group.add(paper);
-      const glint = new THREE.Mesh(
-        planeGeo(1.9, 0.95),
-        new THREE.MeshBasicMaterial({
-          color: '#FFFFFF',
-          transparent: true,
-          opacity: 0.12,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-        }),
-      );
-      glint.position.z = 0.01;
-      group.add(glint);
-      break;
-    }
-    case 'cash':
-      addCash(group, state.count ?? 26, state.mode ?? 'burst');
-      break;
-    case 'question': {
-      const sign = new THREE.Mesh(planeGeo(1.35, 1.35), flatMaterial(questionTexture()));
-      group.add(sign);
-      break;
-    }
-    case 'overhead': {
-      for (const side of [-1, 1]) {
-        const post = new THREE.Mesh(cylGeo(0.1, 0.12, 4.7, 12), standard('#8A939E', 0.75, 0.38));
-        post.position.set(side * 2.6, 2.35, 0);
-        group.add(post);
-      }
-      const backing = new THREE.Mesh(boxGeo(5.0, 0.86, 0.16), standard('#0B6B3A', 0.25, 0.5));
-      backing.position.y = 4.6;
-      group.add(backing);
-      const face = new THREE.Mesh(
-        planeGeo(4.8, 0.68),
-        flatMaterial(signTexture('GOOD DRIVERS FLASHED', '#0B6B3A', '#FFFFFF')),
-      );
-      face.position.set(0, 4.6, 0.1);
-      group.add(face);
-      break;
-    }
-    case 'fence': {
-      for (let i = 0; i <= 12; i++) {
-        const post = new THREE.Mesh(boxGeo(0.08, 1.1, 0.08), standard('#E8EDF0', 0.2, 0.7));
-        post.position.set(-3 + i * 0.5, 0.55, 0);
-        group.add(post);
-      }
-      for (const y of [0.35, 0.85]) {
-        const rail = new THREE.Mesh(boxGeo(6.1, 0.08, 0.08), standard('#F4F6F7', 0.2, 0.65));
-        rail.position.set(0, y, 0);
-        group.add(rail);
-      }
-      break;
-    }
-    case 'livingRoom': {
-      const rug = new THREE.Mesh(
-        planeGeo(5.4, 3.4),
-        new THREE.MeshStandardMaterial({color: '#A63D3D', roughness: 0.95}),
-      );
-      rug.rotation.x = -Math.PI / 2;
-      rug.position.set(0, 0.02, 0.2);
-      group.add(rug);
-      const rugBorder = new THREE.Mesh(
-        torusGeo(1.6, 0.08, 8, 36),
-        standard('#D4A017', 0.5, 0.6),
-      );
-      rugBorder.rotation.x = -Math.PI / 2;
-      rugBorder.scale.set(1.5, 0.95, 1);
-      rugBorder.position.set(0, 0.04, 0.2);
-      group.add(rugBorder);
+export const Mailbox: React.FC<{open: number}> = ({open}) => (
+  <group position={[9, 0, 7]}>
+    <mesh position={[0, 0.7, 0]} castShadow>
+      <boxGeometry args={[0.14, 1.4, 0.14]} />
+      <meshStandardMaterial color="#6B4A2B" roughness={0.9} />
+    </mesh>
+    <group position={[0, 1.65, 0]}>
+      <mesh castShadow>
+        <boxGeometry args={[1.0, 0.55, 0.55]} />
+        <meshPhysicalMaterial color="#1E5FD6" metalness={0.4} roughness={0.3} clearcoat={0.8} />
+      </mesh>
+      <mesh position={[0, 0.3, 0]} castShadow>
+        <boxGeometry args={[1.02, 0.08, 0.57]} />
+        <meshStandardMaterial color="#174BAE" metalness={0.4} roughness={0.35} />
+      </mesh>
+      <mesh position={[-0.505, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
+        <planeGeometry args={[0.5, 0.5]} />
+        <meshBasicMaterial color="#05070A" />
+      </mesh>
+      <group position={[0.2, 0.28, 0.3]}>
+        <mesh position={[0, 0.3, 0]}>
+          <boxGeometry args={[0.04, 0.6, 0.04]} />
+          <meshStandardMaterial color="#CFCFCF" metalness={0.8} roughness={0.3} />
+        </mesh>
+        <mesh position={[0.15, 0.55, 0]}>
+          <boxGeometry args={[0.3, 0.18, 0.03]} />
+          <meshStandardMaterial color="#E11D2E" roughness={0.4} />
+        </mesh>
+      </group>
+      <group position={[-0.5, -0.275, 0]} rotation={[0, 0, open * 1.5]}>
+        <mesh position={[0, 0.275, 0]} castShadow>
+          <boxGeometry args={[0.04, 0.55, 0.55]} />
+          <meshStandardMaterial color="#174BAE" metalness={0.4} roughness={0.35} />
+        </mesh>
+      </group>
+    </group>
+  </group>
+);
 
-      const sofa = new THREE.Mesh(boxGeo(3.3, 0.34, 0.95), standard('#3E74A6', 0.1, 0.85));
-      sofa.position.set(0, 0.34, 0.85);
-      group.add(sofa);
-      const back = new THREE.Mesh(boxGeo(3.3, 0.3, 0.2), standard('#2F6696', 0.1, 0.85));
-      back.position.set(0, 0.6, 1.12);
-      group.add(back);
-      for (const side of [-1, 1]) {
-        const arm = new THREE.Mesh(boxGeo(0.24, 0.38, 0.95), standard('#2F6696', 0.1, 0.85));
-        arm.position.set(side * 1.55, 0.56, 0.85);
-        group.add(arm);
-      }
+export const Fence: React.FC = () => {
+  const posts = Array.from({length: 17}, (_, i) => 2 + i);
+  return (
+    <group position={[0, 0, 9]}>
+      {posts.map((x) => (
+        <mesh key={x} position={[x, 0.55, 0]} castShadow>
+          <boxGeometry args={[0.13, 1.1, 0.13]} />
+          <meshStandardMaterial color="#F5F5F0" roughness={0.7} />
+        </mesh>
+      ))}
+      {[0.45, 0.85].map((y) => (
+        <mesh key={y} position={[10, y, 0]} castShadow>
+          <boxGeometry args={[16, 0.09, 0.06]} />
+          <meshStandardMaterial color="#F5F5F0" roughness={0.7} />
+        </mesh>
+      ))}
+    </group>
+  );
+};
 
-      const tvCase = new THREE.Mesh(boxGeo(2.5, 1.5, 0.18), standard('#182338', 0.45, 0.35));
-      tvCase.position.set(0, 1.95, -1.8);
-      group.add(tvCase);
-      const screen = new THREE.Mesh(planeGeo(2.32, 1.32), flatMaterial(tvTexture()));
-      screen.position.set(0, 1.95, -1.69);
-      group.add(screen);
-      const stand = new THREE.Mesh(boxGeo(0.16, 0.8, 0.16), standard('#4B5563', 0.6, 0.4));
-      stand.position.set(0, 0.85, -1.8);
-      group.add(stand);
-      break;
-    }
-    case 'drum': {
-      const base = new THREE.Mesh(boxGeo(2.4, 0.24, 2.4), standard('#D4A017', 0.85, 0.26));
-      base.position.y = 0.12;
-      group.add(base);
-      const glassShell = new THREE.Mesh(
-        cylGeo(1.02, 1.02, 1.5, 32),
-        new THREE.MeshPhysicalMaterial({
-          color: '#BFE3F2',
-          transparent: true,
-          opacity: 0.24,
-          metalness: 0.1,
-          roughness: 0.06,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-        }),
-      );
-      glassShell.position.y = 0.99;
-      group.add(glassShell);
-      for (const y of [0.25, 1.74]) {
-        const rim = new THREE.Mesh(torusGeo(1.03, 0.055, 10, 36), standard('#F6D774', 0.95, 0.18));
-        rim.rotation.x = Math.PI / 2;
-        rim.position.y = y;
-        group.add(rim);
-      }
-      const dummy = new THREE.Object3D();
-      const notes = new THREE.InstancedMesh(
-        planeGeo(0.34, 0.17),
-        flatMaterial(banknoteTexture()),
-        34,
-      );
-      for (let i = 0; i < 34; i++) {
-        const a = i * 2.39996;
-        const r = 0.2 + (i % 6) * 0.11;
-        dummy.position.set(
-          Math.cos(a) * r,
-          0.45 + (i % 7) * 0.18,
-          Math.sin(a) * r,
+// ---------------------------------------------------------------- road signs
+
+export const FineSign: React.FC<{flip: number}> = ({flip}) => {
+  const sx = Math.max(0.02, Math.abs(Math.cos(flip * Math.PI)));
+  return (
+    <group position={[7, 0, -6.4]}>
+      <mesh position={[0, 0.9, 0]} castShadow>
+        <boxGeometry args={[0.14, 1.8, 0.14]} />
+        <meshStandardMaterial color="#8A8F98" metalness={0.6} roughness={0.4} />
+      </mesh>
+      <group position={[0, 2.5, 0.05]} scale={[sx, 1, 1]}>
+        <mesh castShadow>
+          <boxGeometry args={[2.4, 1.8, 0.1]} />
+          <meshStandardMaterial color="#FFFFFF" />
+        </mesh>
+        <mesh position={[0, 0, 0.06]}>
+          <planeGeometry args={[2.3, 1.7]} />
+          <meshBasicMaterial
+            map={fineSignTexture(flip >= 0.5 ? 300 : 150)}
+            toneMapped={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      </group>
+    </group>
+  );
+};
+
+export const SlowPaint: React.FC = () => (
+  <mesh position={[12, 0.04, -2.2]} rotation={[-Math.PI / 2, -Math.PI / 2, 0, 'YXZ']}>
+    <planeGeometry args={[8, 3.4]} />
+    <meshBasicMaterial map={slowTexture()} transparent toneMapped={false} />
+  </mesh>
+);
+
+export const QMark: React.FC<{p: V3; s: number; cam: V3}> = ({p, s, cam}) => {
+  const yaw = Math.atan2(cam[0] - p[0], cam[2] - p[2]);
+  return (
+    <group position={p} rotation={[0, yaw, 0]} scale={[s, s, s]}>
+      <mesh>
+        <planeGeometry args={[1.8, 1.8]} />
+        <meshBasicMaterial map={qMarkTexture()} transparent toneMapped={false} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+};
+
+export const Gantry: React.FC<{x: number}> = ({x}) => {
+  const metal = <meshStandardMaterial color="#9AA3AD" metalness={0.6} roughness={0.4} />;
+  const panels: Array<[number, string[]]> = [
+    [-2.4, ['SLOW DOWN', 'THANK YOU']],
+    [2.4, ['SPEED LIMIT', '55']],
+  ];
+  return (
+    <group position={[x, 0, 0]}>
+      {[-5.4, 5.4].map((z) => (
+        <mesh key={z} position={[0, 3.4, z]} castShadow>
+          <boxGeometry args={[0.25, 6.8, 0.25]} />
+          {metal}
+        </mesh>
+      ))}
+      <mesh position={[0, 6.7, 0]} castShadow>
+        <boxGeometry args={[0.3, 0.3, 11.2]} />
+        {metal}
+      </mesh>
+      {panels.map(([z, lines]) => {
+        const tex = textPanel('gantry:' + lines.join('|'), lines, '#0E7A3F', '#FFFFFF');
+        return (
+          <group key={z} position={[0, 5.35, z]}>
+            <mesh castShadow>
+              <boxGeometry args={[0.12, 2.0, 3.6]} />
+              <meshStandardMaterial color="#0A5C30" />
+            </mesh>
+            <mesh position={[-0.07, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
+              <planeGeometry args={[3.5, 1.9]} />
+              <meshBasicMaterial map={tex} toneMapped={false} />
+            </mesh>
+            <mesh position={[0.07, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+              <planeGeometry args={[3.5, 1.9]} />
+              <meshBasicMaterial map={tex} toneMapped={false} />
+            </mesh>
+          </group>
         );
-        dummy.rotation.set(0, a, Math.sin(a) * 0.6);
-        dummy.updateMatrix();
-        notes.setMatrixAt(i, dummy.matrix);
-      }
-      notes.instanceMatrix.needsUpdate = true;
-      group.add(notes);
-      const glow = new THREE.PointLight('#FFD36B', 3, 7);
-      glow.position.set(0, 2.2, 0);
-      group.add(glow);
-      break;
-    }
-    case 'jackpot': {
-      const bodyMesh = new THREE.Mesh(
-        boxGeo(1.7, 2.3, 0.95),
-        new THREE.MeshPhysicalMaterial({
-          color: '#C8102E',
-          metalness: 0.45,
-          roughness: 0.16,
-          clearcoat: 1,
-          clearcoatRoughness: 0.06,
-          envMapIntensity: 1.7,
-        }),
-      );
-      bodyMesh.position.y = 1.15;
-      group.add(bodyMesh);
-      const goldTrim = new THREE.MeshStandardMaterial({
-        color: '#D4A017',
-        metalness: 0.96,
-        roughness: 0.14,
-        emissive: '#6B4A05',
-        emissiveIntensity: 0.42,
-        envMapIntensity: 1.9,
-      });
-      const trim = new THREE.Mesh(boxGeo(1.78, 2.38, 0.12), goldTrim);
-      trim.position.z = 0.48;
-      group.add(trim);
-      for (let i = 0; i < 14; i++) {
-        const rivet = new THREE.Mesh(sphereGeo(0.035, 8), goldTrim);
-        rivet.position.set(i % 2 ? 0.83 : -0.83, 0.2 + Math.floor(i / 2) * 0.32, 0.55);
-        group.add(rivet);
-      }
-      const marquee = new THREE.Mesh(
-        planeGeo(1.56, 0.42),
-        flatMaterial(signTexture('JACKPOT', '#17233C', '#FFD400')),
-      );
-      marquee.position.set(0, 2.06, 0.56);
-      group.add(marquee);
-      for (let i = 0; i < 3; i++) {
-        const reel = new THREE.Mesh(
-          planeGeo(0.4, 0.62),
-          flatMaterial(signTexture('$', '#F7F7F2', '#1F6B45')),
-        );
-        reel.position.set(-0.52 + i * 0.52, 1.3, 0.57);
-        group.add(reel);
-      }
-      const tray = new THREE.Mesh(boxGeo(1.1, 0.14, 0.36), standard('#D4A017', 0.9, 0.22));
-      tray.position.set(0, 0.62, 0.6);
-      group.add(tray);
-      const lever = new THREE.Mesh(sphereGeo(0.14, 16), standard('#EF2B2B', 0.3, 0.3));
-      lever.position.set(0.98, 1.45, 0.35);
-      group.add(lever);
-      const leverRod = new THREE.Mesh(cylGeo(0.04, 0.04, 0.6, 10), standard('#C8CDD2', 0.9, 0.2));
-      leverRod.position.set(0.98, 1.15, 0.35);
-      group.add(leverRod);
-      const glow = new THREE.PointLight('#FFD98A', 5.2, 10, 2);
-      glow.position.set(0, 2.4, 1.6);
-      group.add(glow);
-      const rimGlow = new THREE.PointLight('#6E9BFF', 2.6, 9, 2);
-      rimGlow.position.set(-1.4, 1.4, -0.8);
-      group.add(rimGlow);
-      break;
-    }
-  }
+      })}
+    </group>
+  );
+};
 
-  group.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return;
-    const material = child.material as THREE.Material;
-    if (material.transparent || material.opacity < 1) {
-      child.castShadow = false;
-      child.receiveShadow = false;
-      return;
+// ---------------------------------------------------------------- banknotes (burst / rain / inside the drum)
+
+export const Bills: React.FC<{b: BillsSt}> = ({b}) => {
+  const ref = React.useRef<THREE.InstancedMesh>(null);
+  React.useLayoutEffect(() => {
+    const m = ref.current;
+    if (!m) return;
+    const r = rng(b.seed);
+    const d = new THREE.Object3D();
+    for (let i = 0; i < b.count; i++) {
+      const a = r() * Math.PI * 2;
+      const sp = 2 + r() * 4.5;
+      const up = 3 + r() * 5;
+      const ph = r();
+      const s2 = r() * 6 - 3;
+      const s3 = r() * 6 - 3;
+      const sz = 0.9 + r() * 0.5;
+      const zr = r() - 0.5;
+      let x = b.origin[0];
+      let y = b.origin[1];
+      let z = b.origin[2];
+      let rx = 0;
+      let ry = 0;
+      let rz = 0;
+      let sc = sz;
+      if (b.mode === 'burst') {
+        const t = b.t;
+        if (t <= 0) {
+          sc = 0;
+        } else {
+          const dist = (sp * (1 - Math.exp(-1.6 * t))) / 1.6;
+          x += Math.cos(a) * dist;
+          z += Math.sin(a) * dist * 0.6;
+          y = Math.max(0.06, b.origin[1] + up * t - 2.9 * t * t);
+          const air = y > 0.07 ? 1 : 0;
+          rx = s2 * t * air;
+          ry = s3 * t * air;
+          rz = a;
+          if (air === 0) rx = Math.PI / 2;
+        }
+      } else if (b.mode === 'rain') {
+        x += (ph - 0.5) * 5 + Math.sin(b.t * 2 + ph * 9) * 0.3;
+        z += zr * 3.2;
+        y = 11 - ((b.t * (2.6 + ph * 1.6) + ph * 11) % 11);
+        rx = s2 * b.t;
+        ry = s3 * b.t;
+        rz = a;
+      } else {
+        const ang = a + b.t * (1.2 + ph);
+        const rr = 0.12 + ph * 0.62;
+        x += Math.cos(ang) * rr;
+        y += Math.sin(ang) * rr;
+        z += zr * 0.9;
+        rx = s2 * b.t * 0.4;
+        ry = s3 * b.t * 0.4;
+        rz = ang * 2;
+        sc = sz * 0.55;
+      }
+      d.position.set(x, y, z);
+      d.rotation.set(rx, ry, rz);
+      d.scale.setScalar(sc);
+      d.updateMatrix();
+      m.setMatrixAt(i, d.matrix);
     }
-    child.castShadow = true;
-    child.receiveShadow = true;
+    m.instanceMatrix.needsUpdate = true;
   });
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, b.count]} frustumCulled={false}>
+      <planeGeometry args={[0.55, 0.26]} />
+      <meshStandardMaterial
+        map={billTexture()}
+        side={THREE.DoubleSide}
+        roughness={0.7}
+        emissive="#2A6B2A"
+        emissiveIntensity={0.35}
+      />
+    </instancedMesh>
+  );
+};
 
-  return group;
+// ---------------------------------------------------------------- lottery drum full of cash
+
+export const Drum: React.FC<{t: number}> = ({t}) => (
+  <group position={[0, 6.4, -2.3]}>
+    <group rotation={[0, 0, t * 0.9]}>
+      {[[0, 0, 0], [Math.PI / 2, 0, 0], [0, Math.PI / 2, 0]].map((r, i) => (
+        <mesh key={i} rotation={[r[0], r[1], r[2]]}>
+          <torusGeometry args={[1.0, 0.035, 10, 48]} />
+          <meshStandardMaterial color={GOLD} metalness={1} roughness={0.25} />
+        </mesh>
+      ))}
+    </group>
+    <mesh>
+      <sphereGeometry args={[1.0, 40, 28]} />
+      <meshPhysicalMaterial
+        color="#9CC8FF"
+        transparent
+        opacity={0.16}
+        roughness={0.05}
+        clearcoat={1}
+        side={THREE.DoubleSide}
+        depthWrite={false}
+      />
+    </mesh>
+    <Bills b={{mode: 'drum', t, origin: [0, 0, 0], count: 120, seed: 77}} />
+    {[-1.15, 1.15].map((x) => (
+      <mesh key={x} position={[x, -0.9, 0]}>
+        <cylinderGeometry args={[0.09, 0.09, 1.7, 12]} />
+        <meshStandardMaterial color={GOLD} metalness={1} roughness={0.25} />
+      </mesh>
+    ))}
+    <mesh position={[0, -1.78, 0]}>
+      <boxGeometry args={[2.8, 0.2, 1.1]} />
+      <meshStandardMaterial color="#7A0C1E" metalness={0.4} roughness={0.35} />
+    </mesh>
+    <group position={[1.25, 0, 0]} rotation={[0, 0, -t * 0.9]}>
+      <mesh position={[0.25, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.04, 0.04, 0.5, 8]} />
+        <meshStandardMaterial color={GOLD} metalness={1} roughness={0.25} />
+      </mesh>
+      <mesh position={[0.5, 0, 0]}>
+        <sphereGeometry args={[0.14, 16, 12]} />
+        <meshStandardMaterial color="#E11D2E" roughness={0.3} />
+      </mesh>
+    </group>
+  </group>
+);
+
+// ---------------------------------------------------------------- jackpot machine (the camera box turns into this)
+
+export const JackpotMachine: React.FC = () => (
+  <group>
+    <mesh castShadow>
+      <boxGeometry args={[2.2, 3.0, 1.6]} />
+      <meshPhysicalMaterial color="#B3122A" metalness={0.4} roughness={0.25} clearcoat={1} />
+    </mesh>
+    <mesh position={[0, 0.0, 0.81]}>
+      <planeGeometry args={[2.0, 2.7]} />
+      <meshBasicMaterial map={jackpotTexture()} toneMapped={false} />
+    </mesh>
+    <mesh position={[0, 1.6, 0]}>
+      <boxGeometry args={[2.3, 0.2, 1.7]} />
+      <meshStandardMaterial color={GOLD} metalness={1} roughness={0.25} />
+    </mesh>
+    <mesh position={[0, -1.65, 0]}>
+      <boxGeometry args={[2.3, 0.3, 1.7]} />
+      <meshStandardMaterial color={GOLD} metalness={1} roughness={0.25} />
+    </mesh>
+    {Array.from({length: 8}, (_, i) => (
+      <mesh key={i} position={[-0.98 + i * 0.28, 1.4, 0.86]}>
+        <sphereGeometry args={[0.07, 10, 8]} />
+        <meshStandardMaterial color="#FFE08A" emissive="#FFD05A" emissiveIntensity={2.2} />
+      </mesh>
+    ))}
+    <group position={[1.25, 0.3, 0]} rotation={[0, 0, -0.35]}>
+      <mesh position={[0, 0.5, 0]}>
+        <cylinderGeometry args={[0.06, 0.06, 1.0, 10]} />
+        <meshStandardMaterial color="#D9DDE2" metalness={0.9} roughness={0.2} />
+      </mesh>
+      <mesh position={[0, 1.05, 0]}>
+        <sphereGeometry args={[0.18, 16, 12]} />
+        <meshStandardMaterial color="#E11D2E" roughness={0.3} />
+      </mesh>
+    </group>
+  </group>
+);
+
+// ---------------------------------------------------------------- living room set (sofa, TV, rug)
+
+export const LivingRoom: React.FC = () => {
+  const wood = woodTexture();
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[16, 14]} />
+        <meshStandardMaterial map={wood} roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 3, -3.6]}>
+        <planeGeometry args={[16, 6]} />
+        <meshStandardMaterial color="#C9A47A" roughness={0.9} />
+      </mesh>
+      <mesh position={[-8, 3, 3]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[14, 6]} />
+        <meshStandardMaterial color="#B88F66" roughness={0.9} />
+      </mesh>
+      <mesh position={[8, 3, 3]} rotation={[0, -Math.PI / 2, 0]}>
+        <planeGeometry args={[14, 6]} />
+        <meshStandardMaterial color="#B88F66" roughness={0.9} />
+      </mesh>
+      {/* rug */}
+      <mesh position={[0, 0.02, 0.2]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[6, 3.6]} />
+        <meshStandardMaterial color="#8E2A3A" roughness={1} />
+      </mesh>
+      <mesh position={[0, 0.03, 0.2]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[5.4, 3.0]} />
+        <meshStandardMaterial color="#B23A48" roughness={1} />
+      </mesh>
+      {/* sofa (backrest toward the camera) */}
+      <mesh position={[0, 0.25, 1.2]} castShadow>
+        <boxGeometry args={[5.2, 0.5, 1.5]} />
+        <meshStandardMaterial color="#3B5B8C" roughness={0.8} />
+      </mesh>
+      {[-1.75, 0, 1.75].map((x) => (
+        <mesh key={x} position={[x, 0.62, 1.1]} castShadow>
+          <boxGeometry args={[1.65, 0.25, 1.2]} />
+          <meshStandardMaterial color="#4A6EA8" roughness={0.85} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.95, 1.85]} castShadow>
+        <boxGeometry args={[5.2, 1.0, 0.35]} />
+        <meshStandardMaterial color="#3B5B8C" roughness={0.8} />
+      </mesh>
+      {[-2.8, 2.8].map((x) => (
+        <mesh key={x} position={[x, 0.45, 1.3]} castShadow>
+          <boxGeometry args={[0.4, 0.9, 1.5]} />
+          <meshStandardMaterial color="#33507E" roughness={0.8} />
+        </mesh>
+      ))}
+      {/* TV on a cabinet */}
+      <group position={[0, 0, -3.2]}>
+        <mesh position={[0, 0.6, 0]} castShadow>
+          <boxGeometry args={[4.6, 1.2, 0.9]} />
+          <meshStandardMaterial color="#4A2E1B" roughness={0.6} />
+        </mesh>
+        <mesh position={[0, 2.75, 0]}>
+          <boxGeometry args={[3.9, 2.3, 0.2]} />
+          <meshStandardMaterial color="#0C0C0F" roughness={0.3} metalness={0.5} />
+        </mesh>
+        <mesh position={[0, 2.75, 0.11]}>
+          <planeGeometry args={[3.7, 2.1]} />
+          <meshBasicMaterial map={footballTexture()} toneMapped={false} />
+        </mesh>
+      </group>
+      {/* lamp + frames */}
+      <mesh position={[-6, 0.9, -2.4]}>
+        <cylinderGeometry args={[0.06, 0.12, 1.8, 10]} />
+        <meshStandardMaterial color="#555555" metalness={0.8} roughness={0.3} />
+      </mesh>
+      <mesh position={[-6, 2.1, -2.4]}>
+        <coneGeometry args={[0.6, 0.7, 20, 1, true]} />
+        <meshStandardMaterial color="#FFE2A8" emissive="#FFC864" emissiveIntensity={1.4} side={THREE.DoubleSide} />
+      </mesh>
+      {[-5, 5].map((x, i) => (
+        <mesh key={x} position={[x, 3.6, -3.55]}>
+          <planeGeometry args={[1.6, 1.1]} />
+          <meshBasicMaterial color={i ? '#E9C46A' : '#2A9D8F'} />
+        </mesh>
+      ))}
+    </group>
+  );
 };

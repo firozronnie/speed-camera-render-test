@@ -1,282 +1,249 @@
+import React from 'react';
 import * as THREE from 'three';
-import type {CarColor, CarState} from './shots-full';
-import {boxGeo, cylGeo, planeGeo, sphereGeo, torusGeo} from './textures';
+import type {CarSt, DriverSt} from './shots-full';
+import {glowTexture} from './textures';
 
-export const CAR_HEX: Record<CarColor, string> = {
-  red: '#C8102E',
-  blue: '#1565C0',
-  silver: '#C8CDD2',
-  green: '#2E9E44',
-  white: '#F2F2F2',
-  gold: '#D4A017',
+const GOLD = '#D4A017';
+const REAR = '#EF2B2B'; // rear lights are ALWAYS red
+const WHEEL_R = 0.38;
+
+// Where the flat 2D driver sits: head fully BELOW the roofline, face seen through the windscreen.
+export function seatedDriver(car: CarSt): DriverSt | null {
+  if (!car.driver) return null;
+  const ch = car.sports ? 0.4 : 0.55;
+  const headY = 1.0 + ch - 0.3;
+  const s = 0.5;
+  return {
+    id: car.id + '-driver',
+    x: car.x - 0.15 * Math.cos(car.ry),
+    y: headY - 2.55 * s,
+    z: car.z + 0.15 * Math.sin(car.ry),
+    scale: s,
+    emotion: car.driver.emotion,
+    pose: 'seated',
+    phase: 0,
+    prog: 1,
+    shirt: car.driver.shirt,
+    faceTint: car.driver.faceTint,
+    lookX: car.driver.lookX,
+  };
+}
+
+const Paint: React.FC<{c: string; op: number}> = ({c, op}) => (
+  <meshPhysicalMaterial
+    color={c}
+    metalness={0.35}
+    roughness={0.28}
+    clearcoat={1}
+    clearcoatRoughness={0.08}
+    transparent={op < 1}
+    opacity={op}
+    emissive={op < 1 ? '#3AA0FF' : '#000000'}
+    emissiveIntensity={op < 1 ? 0.35 : 0}
+  />
+);
+
+const Solid: React.FC<{c: string; op: number; metal?: number; rough?: number}> = ({
+  c,
+  op,
+  metal = 0.2,
+  rough = 0.6,
+}) => (
+  <meshStandardMaterial
+    color={c}
+    metalness={metal}
+    roughness={rough}
+    transparent={op < 1}
+    opacity={op}
+  />
+);
+
+const Wheel: React.FC<{x: number; z: number; odo: number; op: number}> = ({x, z, odo, op}) => {
+  const side = z > 0 ? 1 : -1;
+  return (
+    <group position={[x, WHEEL_R, z]}>
+      <group rotation={[0, 0, -odo / WHEEL_R]}>
+        <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[WHEEL_R, WHEEL_R, 0.26, 28]} />
+          <Solid c="#141414" op={op} rough={0.85} />
+        </mesh>
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.25, 0.25, 0.275, 24]} />
+          <Solid c="#D9DDE2" op={op} metal={0.9} rough={0.2} />
+        </mesh>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <mesh key={i} position={[0, 0, side * 0.14]} rotation={[0, 0, (i * Math.PI) / 5]}>
+            <boxGeometry args={[0.5, 0.045, 0.02]} />
+            <Solid c="#9AA0A8" op={op} metal={0.9} rough={0.25} />
+          </mesh>
+        ))}
+        <mesh position={[0, 0, side * 0.15]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.06, 0.06, 0.03, 12]} />
+          <Solid c={GOLD} op={op} metal={1} rough={0.2} />
+        </mesh>
+      </group>
+    </group>
+  );
 };
 
-const paint = (color: string) =>
-  new THREE.MeshPhysicalMaterial({
-    color,
-    metalness: 0.52,
-    roughness: 0.14,
-    clearcoat: 1,
-    clearcoatRoughness: 0.05,
-    reflectivity: 0.95,
-    envMapIntensity: 1.55,
-  });
+export const Car: React.FC<{car: CarSt}> = ({car}) => {
+  const op = car.ghost ?? 1;
+  const sports = !!car.sports;
+  const ch = sports ? 0.4 : 0.55; // cabin height
+  const rivets = Array.from({length: 14}, (_, i) => -1.95 + i * 0.3);
+  const brake = car.brake;
 
-const gold = () =>
-  new THREE.MeshStandardMaterial({
-    color: '#D4A017',
-    metalness: 0.94,
-    roughness: 0.16,
-    emissive: '#4A3405',
-    emissiveIntensity: 0.22,
-    envMapIntensity: 1.7,
-  });
-
-const glass = () =>
-  new THREE.MeshPhysicalMaterial({
-    color: '#BFE3F2',
-    metalness: 0.18,
-    roughness: 0.04,
-    transparent: true,
-    opacity: 0.32,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    envMapIntensity: 1.9,
-  });
-
-const mesh = (geo: THREE.BufferGeometry, mat: THREE.Material) => new THREE.Mesh(geo, mat);
-
-/** Rear lamps are red in every frame; braking only increases their glow. */
-const brakeMaterial = (braking: boolean) =>
-  new THREE.MeshStandardMaterial({
-    color: '#EF2B2B',
-    emissive: '#EF2B2B',
-    emissiveIntensity: braking ? 3.2 : 0.9,
-    metalness: 0.15,
-    roughness: 0.22,
-  });
-
-const makeWheel = (spinning: number): THREE.Group => {
-  const wheel = new THREE.Group();
-
-  const tire = mesh(cylGeo(0.42, 0.42, 0.28, 28), new THREE.MeshStandardMaterial({
-    color: '#15181D',
-    roughness: 0.86,
-    metalness: 0.05,
-  }));
-  tire.rotation.z = Math.PI / 2;
-  wheel.add(tire);
-
-  const rim = mesh(cylGeo(0.27, 0.27, 0.3, 24), gold());
-  rim.rotation.z = Math.PI / 2;
-  wheel.add(rim);
-
-  const ring = mesh(torusGeo(0.3, 0.035, 8, 28), new THREE.MeshStandardMaterial({
-    color: '#F6D774',
-    metalness: 0.95,
-    roughness: 0.18,
-  }));
-  ring.rotation.y = Math.PI / 2;
-  wheel.add(ring);
-
-  const brakeDisc = mesh(cylGeo(0.22, 0.22, 0.06, 20), new THREE.MeshStandardMaterial({
-    color: '#6B7280',
-    metalness: 0.9,
-    roughness: 0.3,
-    envMapIntensity: 1.4,
-  }));
-  brakeDisc.rotation.z = Math.PI / 2;
-  wheel.add(brakeDisc);
-
-  const spokeMat = new THREE.MeshStandardMaterial({
-    color: '#F6D774',
-    metalness: 0.95,
-    roughness: 0.15,
-    envMapIntensity: 1.8,
-  });
-  for (let i = 0; i < 8; i++) {
-    const a = (i * Math.PI) / 4;
-    const spoke = mesh(boxGeo(0.07, 0.24, 0.05), spokeMat);
-    spoke.position.set(0, Math.cos(a) * 0.14, Math.sin(a) * 0.14);
-    spoke.rotation.x = a;
-    wheel.add(spoke);
-  }
-  const hub = mesh(sphereGeo(0.07, 12), spokeMat);
-  wheel.add(hub);
-
-  wheel.rotation.x = spinning;
-  return wheel;
-};
-
-export const makeCar = (state: CarState): THREE.Group => {
-  const car = new THREE.Group();
-  car.position.set(state.x, state.y, state.z);
-  car.rotation.y = state.rotationY;
-
-  const bodyPaint = paint(CAR_HEX[state.color]);
-  const trim = gold();
-
-  const shadow = mesh(
-    planeGeo(2.9, 5.0),
-    new THREE.MeshBasicMaterial({
-      color: '#0A1420',
-      transparent: true,
-      opacity: 0.32,
-      depthWrite: false,
-    }),
+  return (
+    <group position={[car.x, 0, car.z]} rotation={[0, car.ry, 0]}>
+      {/* chassis */}
+      <mesh position={[0, 0.42, 0]}>
+        <boxGeometry args={[4.0, 0.25, 1.7]} />
+        <Solid c="#111111" op={op} />
+      </mesh>
+      {/* main body */}
+      <mesh position={[0, 0.7, 0]} castShadow receiveShadow>
+        <boxGeometry args={[4.2, 0.6, 1.9]} />
+        <Paint c={car.color} op={op} />
+      </mesh>
+      {/* sloped hood and trunk */}
+      <mesh position={[1.5, 1.03, 0]} rotation={[0, 0, -0.12]} castShadow>
+        <boxGeometry args={[1.2, 0.12, 1.7]} />
+        <Paint c={car.color} op={op} />
+      </mesh>
+      <mesh position={[-1.7, 1.03, 0]} rotation={[0, 0, 0.1]} castShadow>
+        <boxGeometry args={[0.9, 0.12, 1.7]} />
+        <Paint c={car.color} op={op} />
+      </mesh>
+      {/* glass cabin */}
+      <mesh position={[-0.15, 1.0 + ch / 2, 0]}>
+        <boxGeometry args={[2.0, ch, 1.6]} />
+        <meshStandardMaterial
+          color="#1A2B3D"
+          metalness={0.6}
+          roughness={0.1}
+          transparent
+          opacity={0.5 * op}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* pillars */}
+      {[-1, 1].flatMap((sx) =>
+        [-1, 1].map((sz) => (
+          <mesh key={`${sx}${sz}`} position={[-0.15 + sx * 0.96, 1.0 + ch / 2, sz * 0.76]}>
+            <boxGeometry args={[0.09, ch, 0.09]} />
+            <Paint c={car.color} op={op} />
+          </mesh>
+        )),
+      )}
+      {/* roof + sunroof + gold roof rack */}
+      <mesh position={[-0.15, 1.0 + ch + 0.035, 0]} castShadow>
+        <boxGeometry args={[1.95, 0.07, 1.66]} />
+        <Paint c={car.color} op={op} />
+      </mesh>
+      <mesh position={[-0.15, 1.0 + ch + 0.075, 0]}>
+        <boxGeometry args={[0.9, 0.02, 0.9]} />
+        <Solid c="#0E1620" op={op} metal={0.6} rough={0.15} />
+      </mesh>
+      {[-0.7, 0.4].map((x) => (
+        <mesh key={x} position={[x, 1.0 + ch + 0.11, 0]}>
+          <boxGeometry args={[0.05, 0.04, 1.5]} />
+          <Solid c={GOLD} op={op} metal={1} rough={0.2} />
+        </mesh>
+      ))}
+      {/* gold trim stripe + rivets on both sides */}
+      {[-1, 1].map((sz) => (
+        <group key={sz}>
+          <mesh position={[0, 0.72, sz * 0.955]}>
+            <boxGeometry args={[4.22, 0.05, 0.02]} />
+            <Solid c={GOLD} op={op} metal={1} rough={0.2} />
+          </mesh>
+          {rivets.map((x) => (
+            <mesh key={x} position={[x, 0.55, sz * 0.96]}>
+              <sphereGeometry args={[0.03, 8, 6]} />
+              <Solid c="#E8C95A" op={op} metal={1} rough={0.2} />
+            </mesh>
+          ))}
+          <mesh position={[0.75, 1.05, sz * 1.0]}>
+            <boxGeometry args={[0.18, 0.1, 0.1]} />
+            <Paint c={car.color} op={op} />
+          </mesh>
+        </group>
+      ))}
+      {/* bumpers, grille */}
+      <mesh position={[2.1, 0.5, 0]}>
+        <boxGeometry args={[0.2, 0.25, 1.92]} />
+        <Solid c="#A9AEB5" op={op} metal={0.9} rough={0.25} />
+      </mesh>
+      <mesh position={[-2.1, 0.5, 0]}>
+        <boxGeometry args={[0.2, 0.25, 1.92]} />
+        <Solid c="#A9AEB5" op={op} metal={0.9} rough={0.25} />
+      </mesh>
+      <mesh position={[2.11, 0.72, 0]}>
+        <boxGeometry args={[0.04, 0.22, 0.7]} />
+        <Solid c="#0B0B0B" op={op} />
+      </mesh>
+      {/* headlights */}
+      {[-0.62, 0.62].map((z) => (
+        <mesh key={z} position={[2.08, 0.82, z]} scale={[0.5, 1, 1.3]}>
+          <sphereGeometry args={[0.14, 16, 12]} />
+          <meshStandardMaterial color="#FFF6D0" emissive="#FFF0B0" emissiveIntensity={2.2} transparent={op < 1} opacity={op} />
+        </mesh>
+      ))}
+      {/* tail lights: always RED, brighter when braking */}
+      {[-0.65, 0.65].map((z) => (
+        <mesh key={z} position={[-2.11, 0.82, z]}>
+          <boxGeometry args={[0.06, 0.18, 0.45]} />
+          <meshStandardMaterial
+            color={REAR}
+            emissive={REAR}
+            emissiveIntensity={brake ? 3.6 : 0.9}
+            transparent={op < 1}
+            opacity={op}
+          />
+        </mesh>
+      ))}
+      {sports ? (
+        <group>
+          <mesh position={[-2.0, 1.28, 0]}>
+            <boxGeometry args={[0.32, 0.05, 1.6]} />
+            <Paint c={car.color} op={op} />
+          </mesh>
+          {[-0.6, 0.6].map((z) => (
+            <mesh key={z} position={[-1.95, 1.15, z]}>
+              <boxGeometry args={[0.06, 0.2, 0.06]} />
+              <Solid c="#111111" op={op} />
+            </mesh>
+          ))}
+        </group>
+      ) : null}
+      {/* wheels */}
+      <Wheel x={1.3} z={0.93} odo={car.odo} op={op} />
+      <Wheel x={1.3} z={-0.93} odo={car.odo} op={op} />
+      <Wheel x={-1.3} z={0.93} odo={car.odo} op={op} />
+      <Wheel x={-1.3} z={-0.93} odo={car.odo} op={op} />
+      {/* glows: headlights always, brake lights when braking */}
+      <sprite position={[2.4, 0.82, 0]} scale={[1.6, 1.6, 1]}>
+        <spriteMaterial
+          map={glowTexture()}
+          color="#FFE9A8"
+          transparent
+          opacity={0.5 * op}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </sprite>
+      {brake ? (
+        <sprite position={[-2.4, 0.82, 0]} scale={[2.2, 2.2, 1]}>
+          <spriteMaterial
+            map={glowTexture()}
+            color="#FF2A2A"
+            transparent
+            opacity={0.9 * op}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </sprite>
+      ) : null}
+    </group>
   );
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.012;
-  car.add(shadow);
-
-  const bodyHeight = state.sports ? 0.52 : 0.64;
-  const lower = mesh(boxGeo(2.1, bodyHeight, 4.2), bodyPaint);
-  lower.position.y = state.sports ? 0.68 : 0.74;
-  car.add(lower);
-
-  const lowerGloss = mesh(
-    boxGeo(2.12, 0.08, 4.05),
-    new THREE.MeshStandardMaterial({
-      color: '#FFFFFF',
-      transparent: true,
-      opacity: 0.18,
-      metalness: 0.6,
-      roughness: 0.1,
-    }),
-  );
-  lowerGloss.position.y = state.sports ? 0.95 : 1.04;
-  car.add(lowerGloss);
-
-  const hood = mesh(boxGeo(1.94, 0.18, 1.24), bodyPaint);
-  hood.position.set(0, state.sports ? 0.98 : 1.04, 1.4);
-  car.add(hood);
-
-  const trunk = mesh(boxGeo(1.94, 0.16, 0.9), bodyPaint);
-  trunk.position.set(0, state.sports ? 0.98 : 1.04, -1.58);
-  car.add(trunk);
-
-  const roofY = state.sports ? 1.4 : 1.52;
-  const roof = mesh(boxGeo(1.62, 0.11, 1.66), bodyPaint);
-  roof.position.set(0, roofY, -0.16);
-  car.add(roof);
-
-  const glassMat = glass();
-  const windshield = mesh(planeGeo(1.52, 0.62), glassMat);
-  windshield.position.set(0, roofY - 0.34, 0.86);
-  windshield.rotation.x = -0.3;
-  car.add(windshield);
-
-  const rearWindow = mesh(planeGeo(1.5, 0.54), glassMat);
-  rearWindow.position.set(0, roofY - 0.34, -1.16);
-  rearWindow.rotation.x = 0.3;
-  car.add(rearWindow);
-
-  for (const side of [-1, 1]) {
-    const sideGlass = mesh(planeGeo(1.5, 0.52), glassMat);
-    sideGlass.position.set(side * 0.88, roofY - 0.34, -0.16);
-    sideGlass.rotation.y = Math.PI / 2;
-    car.add(sideGlass);
-
-    for (const zPos of [0.82, -1.12]) {
-      const pillar = mesh(boxGeo(0.12, 0.66, 0.12), bodyPaint);
-      pillar.position.set(side * 0.87, roofY - 0.34, zPos);
-      car.add(pillar);
-    }
-
-    const sill = mesh(boxGeo(0.05, 0.06, 3.9), trim);
-    sill.position.set(side * 1.06, 0.48, 0);
-    car.add(sill);
-
-    const roofRail = mesh(boxGeo(0.05, 0.05, 1.7), trim);
-    roofRail.position.set(side * 0.68, roofY + 0.09, -0.16);
-    car.add(roofRail);
-
-    for (let i = 0; i < 9; i++) {
-      const rivet = mesh(sphereGeo(0.035, 8), trim);
-      rivet.position.set(side * 1.07, 0.72, -1.7 + i * 0.42);
-      car.add(rivet);
-    }
-  }
-
-  const lamps = brakeMaterial(state.brake);
-  for (const side of [-1, 1]) {
-    const rearLamp = mesh(boxGeo(0.44, 0.2, 0.09), lamps);
-    rearLamp.position.set(side * 0.72, 0.88, -2.13);
-    car.add(rearLamp);
-
-    const lampGlint = mesh(
-      planeGeo(0.34, 0.1),
-      new THREE.MeshBasicMaterial({
-        color: '#FF8080',
-        transparent: true,
-        opacity: state.brake ? 0.9 : 0.45,
-        side: THREE.DoubleSide,
-      }),
-    );
-    lampGlint.position.set(side * 0.72, 0.91, -2.19);
-    lampGlint.rotation.y = Math.PI;
-    car.add(lampGlint);
-
-    const headLamp = mesh(
-      boxGeo(0.42, 0.16, 0.08),
-      new THREE.MeshStandardMaterial({
-        color: '#FFF3C4',
-        emissive: '#FFE9A8',
-        emissiveIntensity: 2.5,
-        roughness: 0.18,
-        envMapIntensity: 1.5,
-      }),
-    );
-    headLamp.position.set(side * 0.72, 0.9, 2.13);
-    car.add(headLamp);
-  }
-
-  const grille = mesh(
-    boxGeo(1.1, 0.24, 0.06),
-    new THREE.MeshStandardMaterial({color: '#202733', metalness: 0.8, roughness: 0.35}),
-  );
-  grille.position.set(0, 0.72, 2.14);
-  car.add(grille);
-
-  if (state.sports) {
-    const wing = mesh(boxGeo(1.96, 0.08, 0.42), bodyPaint);
-    wing.position.set(0, 1.36, -1.9);
-    car.add(wing);
-    for (const side of [-1, 1]) {
-      const stand = mesh(boxGeo(0.08, 0.34, 0.08), trim);
-      stand.position.set(side * 0.72, 1.19, -1.9);
-      car.add(stand);
-    }
-  }
-
-  for (const xPos of [-1.02, 1.02]) {
-    for (const zPos of [-1.36, 1.36]) {
-      const wheel = makeWheel(state.wheelSpin);
-      wheel.position.set(xPos, 0.42, zPos);
-      car.add(wheel);
-    }
-  }
-
-  if (state.color === 'red' || state.sports || state.brake) {
-    const headLight = new THREE.PointLight('#FFE9B8', state.sports ? 1.8 : 1.1, 11, 2);
-    headLight.position.set(0, 0.95, 2.3);
-    car.add(headLight);
-    const tailLight = new THREE.PointLight('#EF2B2B', state.brake ? 1.9 : 0.5, 5, 2);
-    tailLight.position.set(0, 0.92, -2.25);
-    car.add(tailLight);
-  }
-
-  car.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return;
-    const material = child.material as THREE.Material;
-    if (material.transparent || material.opacity < 1) {
-      child.castShadow = false;
-      child.receiveShadow = false;
-      return;
-    }
-    child.castShadow = true;
-    child.receiveShadow = true;
-  });
-
-  return car;
 };
